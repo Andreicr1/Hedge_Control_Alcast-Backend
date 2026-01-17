@@ -1,0 +1,168 @@
+import logging
+
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import OperationalError
+
+from app.api.deps import enforce_auditoria_readonly
+from app.api.router import api_router
+from app.config import settings
+from app.core.observability import (
+    global_exception_handler,
+    request_logging_middleware,
+    uptime_seconds,
+    utc_now_iso,
+)
+from app.services.scheduler import runner as daily_runner
+from app.database import SessionLocal
+from app.services.auth import hash_password
+from app import models
+
+api_prefix = (
+    settings.api_prefix
+    if settings.api_prefix.startswith("/")
+    else f"/{settings.api_prefix}"
+    if settings.api_prefix
+    else ""
+)
+
+logger = logging.getLogger("alcast")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+app = FastAPI(
+    title=settings.app_name,
+    docs_url="/docs" if settings.enable_docs else None,
+    redoc_url="/redoc" if settings.enable_docs else None,
+    openapi_url=(f"{api_prefix}/openapi.json" if api_prefix else "/openapi.json")
+    if settings.enable_docs
+    else None,
+    dependencies=[Depends(enforce_auditoria_readonly)],
+)
+
+# Expose logger for middleware without creating circular imports.
+app.state.logger = logger
+
+# Global exception handler - catches all unhandled exceptions and returns structured error
+app.add_exception_handler(Exception, global_exception_handler)
+
+# Request-level logging + request correlation id.
+app.middleware("http")(request_logging_middleware)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api_router, prefix=api_prefix)
+
+
+def _seed_dev_users() -> None:
+    env = str(settings.environment or "dev").lower()
+    if env in {"prod", "production", "test"}:
+        return
+
+    db = SessionLocal()
+    try:
+        # Ensure roles exist.
+        for role_name in [
+            models.RoleName.admin,
+            models.RoleName.financeiro,
+            models.RoleName.compras,
+            models.RoleName.vendas,
+            models.RoleName.auditoria,
+        ]:
+            role = db.query(models.Role).filter(models.Role.name == role_name).first()
+            if not role:
+                db.add(models.Role(name=role_name, description=str(role_name.value)))
+
+        db.flush()
+
+        def ensure_user(email: str, name: str, role_name: models.RoleName) -> None:
+            existing = db.query(models.User).filter(models.User.email == email).first()
+            if existing:
+                return
+            role = db.query(models.Role).filter(models.Role.name == role_name).first()
+            if not role:
+                return
+            db.add(
+                models.User(
+                    email=email,
+                    name=name,
+                    hashed_password=hash_password("123"),
+                    role_id=role.id,
+                    active=True,
+                )
+            )
+
+        # Default accounts used by the frontend 'Acesso rápido (dev)'.
+        ensure_user("admin@alcast.local", "Admin", models.RoleName.admin)
+        ensure_user("financeiro@alcast.dev", "Financeiro", models.RoleName.financeiro)
+        ensure_user("compras@alcast.dev", "Compras", models.RoleName.compras)
+        ensure_user("vendas@alcast.dev", "Vendas", models.RoleName.vendas)
+        ensure_user("auditoria@alcast.dev", "Auditoria", models.RoleName.auditoria)
+
+        db.commit()
+    except OperationalError as e:
+        # Database not ready yet (e.g., missing tables) - don't block startup.
+        logger.warning("dev_user_seed_failed", extra={"error": str(e)})
+        db.rollback()
+    except Exception as e:
+        logger.warning("dev_user_seed_failed", extra={"error": str(e)})
+        db.rollback()
+    finally:
+        db.close()
+
+
+@app.on_event("startup")
+def _startup_scheduler():
+    _seed_dev_users()
+    # Avoid running background threads in test context by default.
+    if (settings.environment or "").lower() == "test":
+        return
+    # Allow ops to disable scheduler via env var if needed.
+    if str(getattr(settings, "scheduler_enabled", "true")).lower() in {"0", "false", "no"}:
+        return
+    daily_runner.start()
+    logger.info("scheduler_started", extra={"daily_utc_hour": daily_runner.hour_utc})
+
+
+@app.on_event("shutdown")
+def _shutdown_scheduler():
+    try:
+        daily_runner.stop()
+        logger.info("scheduler_stopped")
+    except Exception:
+        # don't block shutdown
+        pass
+
+
+@app.get("/", tags=["meta"])
+def root():
+    docs_path = (
+        (f"{api_prefix}/openapi.json" if api_prefix else "/openapi.json")
+        if settings.enable_docs
+        else None
+    )
+    logger.info("health_check", extra={"event": "root", "status": "ok"})
+    return {"message": "Hedge Control API", "docs": docs_path}
+
+
+@app.get("/health", tags=["meta"])
+@app.get("/healthz", tags=["meta"])
+def healthcheck():
+    """Institutional healthcheck (liveness).
+
+    Keep payload stable for monitoring systems.
+    """
+
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "environment": settings.environment,
+        "time": utc_now_iso(),
+        "uptime_seconds": round(uptime_seconds(), 2),
+        "version": getattr(settings, "build_version", None),
+    }

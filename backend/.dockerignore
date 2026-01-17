@@ -1,0 +1,23 @@
+# Docker build context optimizations (backend)
+
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+.venv
+venv
+.env
+
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+logs
+
+# Local dev artifacts
+*.sqlite
+*.db
+
+# Frontend assets (not needed in backend image)
+node_modules

@@ -1,0 +1,82 @@
+from fastapi import APIRouter
+
+from app.api.routes import (
+    auth,
+    cashflow,
+    contracts,
+    counterparties,
+    customers,
+    dashboard,
+    deals,
+    exports,
+    exposure_links,
+    exposures,
+    finance_pipeline_daily,
+    fx_policies,
+    health,
+    hedge_manual,
+    hedge_tasks,
+    hedges,
+    inbox,
+    lme_public,
+    locations,
+    market_aluminum,
+    market_data,
+    mtm,
+    mtm_snapshot,
+    net_exposure,
+    pnl,
+    purchase_orders,
+    rfq_ingest,
+    rfq_preview,
+    rfq_send,
+    rfqs,
+    sales_orders,
+    settlements,
+    suppliers,
+    timeline,
+    westmetall,
+    whatsapp_business,
+    whatsapp_webhook,
+    workflows,
+)
+
+api_router = APIRouter()
+api_router.include_router(health.router)
+api_router.include_router(auth.router)
+api_router.include_router(dashboard.router)
+api_router.include_router(inbox.router)
+api_router.include_router(timeline.router)
+api_router.include_router(exports.router)
+api_router.include_router(workflows.router)
+api_router.include_router(cashflow.router)
+api_router.include_router(purchase_orders.router)
+api_router.include_router(sales_orders.router)
+api_router.include_router(suppliers.router)
+api_router.include_router(customers.router)
+api_router.include_router(counterparties.router)
+api_router.include_router(rfqs.router)
+api_router.include_router(rfq_send.router)
+api_router.include_router(rfq_ingest.router)
+api_router.include_router(whatsapp_webhook.router)
+api_router.include_router(rfq_preview.router)
+api_router.include_router(hedges.router)
+api_router.include_router(locations.router)
+api_router.include_router(exposures.router)
+api_router.include_router(hedge_tasks.router)
+api_router.include_router(hedge_manual.router)
+api_router.include_router(exposure_links.router)
+api_router.include_router(net_exposure.router)
+api_router.include_router(finance_pipeline_daily.router)
+api_router.include_router(pnl.router)
+api_router.include_router(fx_policies.router)
+api_router.include_router(mtm_snapshot.router)
+api_router.include_router(market_data.router)
+api_router.include_router(market_aluminum.router)
+api_router.include_router(lme_public.router)
+api_router.include_router(westmetall.router)
+api_router.include_router(mtm.router)
+api_router.include_router(deals.router)
+api_router.include_router(whatsapp_business.router)
+api_router.include_router(contracts.router)
+api_router.include_router(settlements.router)

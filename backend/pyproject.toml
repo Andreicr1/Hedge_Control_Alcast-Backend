@@ -1,0 +1,25 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", ".venv311", "migrations", "alembic"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+# B008: Depends() em defaults é padrão FastAPI
+# B904: raise from - melhoria incremental, não bloqueante
+# E501: Linhas longas serão corrigidas incrementalmente
+# F841: Variáveis não usadas - cleanup incremental
+ignore = ["B008", "B904", "E501", "F841"]
+
+[tool.ruff.lint.per-file-ignores]
+# Re-exports intencionais em __init__.py
+"app/schemas/__init__.py" = ["F401"]
+"app/models/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

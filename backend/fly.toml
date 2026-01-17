@@ -1,0 +1,45 @@
+# Fly.io app configuration (FastAPI)
+#
+# Recommended flow:
+#   cd backend
+#   fly launch --no-deploy
+#   (edit app name if needed)
+#   fly secrets set DATABASE_URL=... SECRET_KEY=... CORS_ORIGINS='["https://<frontend>"]'
+#   fly deploy
+#
+# NOTE: Keep ENVIRONMENT=production and set CORS_ORIGINS explicitly.
+
+app = "hedge-control-alcast-backend"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENVIRONMENT = "production"
+  ENABLE_DOCS = "false"
+  DB_CONNECT_TIMEOUT_SECONDS = "10"
+  # If you scale beyond 1 instance, avoid running the scheduler in every replica.
+  SCHEDULER_ENABLED = "false"
+
+[deploy]
+  release_command = "alembic upgrade head"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Pre-commit hook for Backend quality gate
+# Runs ruff check + format on staged Python files only
+#
+# Installation:
+#   cp scripts/pre-commit.hook .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# Or create a symlink:
+#   ln -sf ../../scripts/pre-commit.hook .git/hooks/pre-commit
+
+set -e
+
+cd "$(git rev-parse --show-toplevel)/backend" || exit 1
+
+# Get staged Python files
+STAGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$' || true)
+
+if [ -z "$STAGED_PY_FILES" ]; then
+    echo "[pre-commit] No Python files staged – skipping lint"
+    exit 0
+fi
+
+echo "[pre-commit] Running ruff on staged files..."
+
+# Prefer venv311 if available, fallback to system python
+if [ -f "../.venv311/bin/python" ]; then
+    PYTHON="../.venv311/bin/python"
+elif [ -f "../.venv311/Scripts/python.exe" ]; then
+    PYTHON="../.venv311/Scripts/python.exe"
+elif [ -f "../.venv/bin/python" ]; then
+    PYTHON="../.venv/bin/python"
+else
+    PYTHON="python"
+fi
+
+# Lint check (no autofix – just report)
+echo "$STAGED_PY_FILES" | xargs $PYTHON -m ruff check --quiet
+
+# Format check
+echo "$STAGED_PY_FILES" | xargs $PYTHON -m ruff format --check --quiet
+
+echo "[pre-commit] ✅ All staged Python files pass lint and format checks"
