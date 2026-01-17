@@ -49,9 +49,21 @@ In Render service settings → Environment:
 
 - `ENVIRONMENT=production`
 - `ENABLE_DOCS=false`
-- `DATABASE_URL=<supabase-connection-string>`
-- `SECRET_KEY=<strong-random>`
-- `CORS_ORIGINS=["https://<your-frontend-domain>"]`
+
+### If you can only use Render "Secret Files"
+
+This backend supports Render Secret Files mounted at `/etc/secrets/<NAME>`.
+
+Create Secret Files with these exact names:
+
+- `DATABASE_URL` → your Supabase connection string (include `?sslmode=require`)
+- `SECRET_KEY` → strong random secret
+- `CORS_ORIGINS` → JSON list, e.g. `["https://<your-frontend-domain>"]`
+
+Then you only need the non-secret env vars:
+
+- `ENVIRONMENT=production`
+- `ENABLE_DOCS=false`
 
 Optional:
 
