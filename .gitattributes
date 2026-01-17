@@ -1,0 +1,6 @@
+# Ensure Linux shell scripts keep LF line endings (important for Docker/Render)
+*.sh text eol=lf
+
+# Keep Windows batch scripts in CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
