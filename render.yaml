@@ -14,11 +14,11 @@
 services:
   - type: web
     name: hedge-control-alcast-backend
-    env: docker
+    runtime: docker
     plan: starter
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
-    autoDeploy: true
+    autoDeployTrigger: commit
     healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
