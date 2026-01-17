@@ -1,0 +1,35 @@
+# Render Blueprint: Supabase (Postgres) + Render (FastAPI via Docker)
+#
+# How to use:
+# - Push this repo to GitHub/GitLab
+# - In Render: New -> Blueprint -> select repo
+# - Set secrets (DATABASE_URL, SECRET_KEY, CORS_ORIGINS) in the Render UI
+#
+# Notes:
+# - This blueprint keeps scheduler disabled by default. If you need it, enable it in ONE place only.
+# - Migrations: Render doesn't run alembic automatically from blueprints for Docker services.
+#   Recommended: add a one-off "Job"/"Shell" in Render to run `alembic upgrade head` after deploy,
+#   or temporarily set the start command to run migrations first (see backend/DEPLOY_RENDER_SUPABASE.md).
+
+services:
+  - type: web
+    name: hedge-control-alcast-backend
+    env: docker
+    plan: starter
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: ENABLE_DOCS
+        value: "false"
+      - key: DB_CONNECT_TIMEOUT_SECONDS
+        value: "10"
+      - key: SCHEDULER_ENABLED
+        value: "false"
+      # Secrets (set in Render UI):
+      # - DATABASE_URL
+      # - SECRET_KEY
+      # - CORS_ORIGINS

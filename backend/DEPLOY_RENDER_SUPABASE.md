@@ -33,7 +33,7 @@ Option A (recommended): **Blueprint**
 
 - Render → New → Blueprint
 - Select your repo
-- It will read `backend/render.yaml`
+- It will read `render.yaml` (repo root)
 
 Option B: Manual Web Service
 
