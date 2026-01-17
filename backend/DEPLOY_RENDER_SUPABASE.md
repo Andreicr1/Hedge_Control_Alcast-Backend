@@ -67,13 +67,15 @@ After the first deploy, open a Render shell (or use a one-off job if available) 
 
 - `alembic upgrade head`
 
-### Alternative: temporary start command wrapper
+### Alternative: run migrations on startup (toggle)
 
-If you prefer automation, you can temporarily change the service start command to:
+This repo includes `backend/start-prod.sh`, which can run migrations before starting the API.
+In Render env vars, set:
 
-- `sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"`
 
-Then revert after the first deploy.
+- `RUN_MIGRATIONS_ON_START=true`
+
+If you later scale to multiple instances, keep this `false` and run migrations as a one-off job.
 
 ## 6) Point the frontend to Render
 
