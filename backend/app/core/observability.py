@@ -38,6 +38,8 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         "exception_type": type(exc).__name__,
     }
 
+    headers = {"X-Request-ID": request_id}
+
     try:
         logger = getattr(request.app.state, "logger", None)
         if logger:
@@ -48,7 +50,30 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         # Fallback to basic logging if app state is not available
         logging.getLogger("alcast").exception("unhandled_exception", extra=extra)
 
-    # Return a clean institutional error message
+    # Attach CORS headers when the request Origin is allowed.
+    # This prevents browsers from turning real 500s into opaque CORS errors.
+    try:
+        origin = request.headers.get("origin")
+        if origin:
+            allowed = set(
+                getattr(getattr(request.app, "state", None), "settings_cors_origins", []) or []
+            )
+            if not allowed:
+                from app.config import settings
+
+                allowed = set(settings.cors_origins or [])
+
+            if origin in allowed or "*" in allowed:
+                headers.update(
+                    {
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Vary": "Origin",
+                    }
+                )
+    except Exception:
+        pass
+
     return JSONResponse(
         status_code=500,
         content={
@@ -56,7 +81,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             "request_id": request_id,
             "code": "INTERNAL_SERVER_ERROR",
         },
-        headers={"X-Request-ID": request_id},
+        headers=headers,
     )
 
 
