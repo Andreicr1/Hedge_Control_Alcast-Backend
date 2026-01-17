@@ -32,6 +32,18 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = False
 
+        @classmethod
+        def parse_env_var(cls, field_name: str, raw_val: str):
+            # Pydantic BaseSettings (v1) attempts to JSON-decode complex types (e.g. List[str])
+            # before validators run, which can crash on non-JSON values.
+            # For CORS_ORIGINS we want to accept JSON, Python-ish list strings, or CSV.
+            if field_name == "cors_origins":
+                return raw_val
+            try:
+                return cls.json_loads(raw_val)
+            except Exception:
+                return raw_val
+
     @validator("enable_docs", pre=True, always=True)
     def default_enable_docs(cls, value, values):
         if value is None or value == "":
@@ -44,6 +56,13 @@ class Settings(BaseSettings):
     @validator("cors_origins", pre=True, always=True)
     def parse_and_default_cors_origins(cls, value, values):
         env = str(values.get("environment", "dev") or "dev").lower()
+
+        def _normalize_origin(o: str) -> str:
+            s = str(o).strip().strip('"').strip("'")
+            # Browsers send the Origin header without a trailing slash.
+            if s.endswith("/"):
+                s = s[:-1]
+            return s
 
         # If not provided, default to a safe dev/test list; require explicit config in production.
         if value is None or value == "":
@@ -68,19 +87,25 @@ class Settings(BaseSettings):
             # First, try normal JSON (recommended): ["http://...", "http://..."]
             try:
                 parsed = json.loads(s)
-                return parsed
+                if isinstance(parsed, str):
+                    return [_normalize_origin(parsed)]
+                if isinstance(parsed, list):
+                    return [_normalize_origin(v) for v in parsed if str(v).strip()]
+                return [_normalize_origin(str(parsed))]
             except json.JSONDecodeError:
                 pass
 
             # Then, accept Python-ish list strings: ['http://...','http://...']
             if s.startswith("[") and s.endswith("]") and ("'") in s and ('"' not in s):
                 try:
-                    return json.loads(s.replace("'", '"'))
+                    parsed = json.loads(s.replace("'", '"'))
+                    if isinstance(parsed, list):
+                        return [_normalize_origin(v) for v in parsed if str(v).strip()]
                 except json.JSONDecodeError:
                     pass
 
             # Finally, accept comma-separated origins.
-            return [v.strip().strip('"').strip("'") for v in s.split(",") if v.strip()]
+            return [_normalize_origin(v) for v in s.split(",") if str(v).strip()]
 
         return value
 
