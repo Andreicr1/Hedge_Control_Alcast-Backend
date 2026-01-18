@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import models
@@ -18,7 +19,22 @@ def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    try:
+        user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    except SQLAlchemyError:
+        audit_event(
+            "auth.login_db_error",
+            None,
+            {"email": form_data.username},
+            db=db,
+            request_id=request.headers.get("x-request-id"),
+            ip=(request.client.host if request.client else None),
+            user_agent=request.headers.get("user-agent"),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Banco de dados indisponível ou não inicializado. Tente novamente em alguns instantes.",
+        )
     if not user or not verify_password(form_data.password, user.hashed_password):
         audit_event(
             "auth.login_failed",

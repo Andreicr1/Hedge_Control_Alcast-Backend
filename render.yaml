@@ -30,8 +30,10 @@ services:
       - key: SCHEDULER_ENABLED
         value: "false"
       - key: RUN_MIGRATIONS_ON_START
-        value: "false"
+        value: "true"
+      - key: CORS_ORIGINS
+        value: '["https://hedge-control-alcast-frontend.vercel.app"]'
       # Secrets (set in Render UI):
       # - DATABASE_URL
       # - SECRET_KEY
-      # - CORS_ORIGINS
+      # - (optional override) CORS_ORIGINS
