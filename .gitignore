@@ -36,3 +36,6 @@ Thumbs.db
 # Node artifacts (if any)
 node_modules/
 
+# VSIX artifacts
+*.vsix
+
