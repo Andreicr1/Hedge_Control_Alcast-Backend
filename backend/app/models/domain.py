@@ -171,7 +171,10 @@ class Role(Base):
     __tablename__ = "roles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[RoleName] = mapped_column(Enum(RoleName), unique=True, nullable=False)
+    # Supabase schema stores roles.name as VARCHAR (not a Postgres ENUM).
+    name: Mapped[RoleName] = mapped_column(
+        Enum(RoleName, native_enum=False), unique=True, nullable=False
+    )
     description: Mapped[str | None] = mapped_column(String(255))
 
     users = relationship("User", back_populates="role")
@@ -532,7 +535,10 @@ class PurchaseOrder(Base):
     unit: Mapped[str | None] = mapped_column(String(16), default="MT")
     unit_price: Mapped[float | None] = mapped_column(Float)
     pricing_type: Mapped[PricingType] = mapped_column(
-        Enum(PricingType), default=PricingType.monthly_average, nullable=False
+        # Stored as VARCHAR in Supabase schema.
+        Enum(PricingType, native_enum=False),
+        default=PricingType.monthly_average,
+        nullable=False,
     )
     pricing_period: Mapped[str | None] = mapped_column(String(32))
     lme_premium: Mapped[float] = mapped_column(Float, default=0.0)
@@ -543,7 +549,8 @@ class PurchaseOrder(Base):
     location: Mapped[str | None] = mapped_column(String(128))
     avg_cost: Mapped[float | None] = mapped_column(Float)
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus), default=OrderStatus.draft, nullable=False
+        # Stored as VARCHAR in Supabase schema.
+        Enum(OrderStatus, native_enum=False), default=OrderStatus.draft, nullable=False
     )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -572,7 +579,10 @@ class SalesOrder(Base):
     unit: Mapped[str | None] = mapped_column(String(16), default="MT")
     unit_price: Mapped[float | None] = mapped_column(Float)
     pricing_type: Mapped[PricingType] = mapped_column(
-        Enum(PricingType), default=PricingType.monthly_average, nullable=False
+        # Stored as VARCHAR in Supabase schema.
+        Enum(PricingType, native_enum=False),
+        default=PricingType.monthly_average,
+        nullable=False,
     )
     pricing_period: Mapped[str | None] = mapped_column(String(32))
     lme_premium: Mapped[float] = mapped_column(Float, default=0.0)
@@ -582,7 +592,8 @@ class SalesOrder(Base):
     expected_delivery_date: Mapped[Date | None] = mapped_column(Date)
     location: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus), default=OrderStatus.draft, nullable=False
+        # Stored as VARCHAR in Supabase schema.
+        Enum(OrderStatus, native_enum=False), default=OrderStatus.draft, nullable=False
     )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -607,7 +618,10 @@ class Counterparty(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     rfq_channel_type: Mapped[str | None] = mapped_column(String(32), default="BROKER_LME")
-    type: Mapped[CounterpartyType] = mapped_column(Enum(CounterpartyType), nullable=False)
+    # Stored as VARCHAR in Supabase schema.
+    type: Mapped[CounterpartyType] = mapped_column(
+        Enum(CounterpartyType, native_enum=False), nullable=False
+    )
     trade_name: Mapped[str | None] = mapped_column(String(255))
     legal_name: Mapped[str | None] = mapped_column(String(255))
     entity_type: Mapped[str | None] = mapped_column(String(64))
@@ -679,7 +693,8 @@ class Rfq(Base):
     quantity_mt: Mapped[float] = mapped_column(Float, nullable=False)
     period: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[RfqStatus] = mapped_column(
-        Enum(RfqStatus), default=RfqStatus.pending, nullable=False
+        # Stored as VARCHAR in Supabase schema.
+        Enum(RfqStatus, native_enum=False), default=RfqStatus.pending, nullable=False
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     awarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1144,7 +1159,8 @@ class Deal(Base):
     reference_name: Mapped[str | None] = mapped_column(String(255), index=True)
     currency: Mapped[str] = mapped_column(String(8), default="USD")
     status: Mapped[DealStatus] = mapped_column(
-        Enum(DealStatus), default=DealStatus.open, nullable=False, index=True
+        # Stored as VARCHAR in Supabase schema.
+        Enum(DealStatus, native_enum=False), default=DealStatus.open, nullable=False, index=True
     )
     lifecycle_status: Mapped[DealLifecycleStatus] = mapped_column(
         Enum(DealLifecycleStatus),
@@ -1166,12 +1182,21 @@ class DealLink(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     deal_id: Mapped[int] = mapped_column(ForeignKey("deals.id"), nullable=False, index=True)
-    entity_type: Mapped[DealEntityType] = mapped_column(Enum(DealEntityType), nullable=False)
+    # Stored as VARCHAR in Supabase schema.
+    entity_type: Mapped[DealEntityType] = mapped_column(
+        Enum(DealEntityType, native_enum=False), nullable=False
+    )
     entity_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    direction: Mapped[DealDirection] = mapped_column(Enum(DealDirection), nullable=False)
+    # Stored as VARCHAR in Supabase schema.
+    direction: Mapped[DealDirection] = mapped_column(
+        Enum(DealDirection, native_enum=False), nullable=False
+    )
     quantity_mt: Mapped[float | None] = mapped_column(Float)
     allocation_type: Mapped[DealAllocationType] = mapped_column(
-        Enum(DealAllocationType), default=DealAllocationType.auto, nullable=False
+        # Stored as VARCHAR in Supabase schema.
+        Enum(DealAllocationType, native_enum=False),
+        default=DealAllocationType.auto,
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
