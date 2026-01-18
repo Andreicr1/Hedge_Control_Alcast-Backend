@@ -24,7 +24,14 @@ def upgrade() -> None:
         # PostgreSQL enum value additions may require autocommit.
         ctx = op.get_context()
         with ctx.autocommit_block():
-            op.execute("ALTER TYPE rolename ADD VALUE IF NOT EXISTS 'auditoria'")
+            # NOTE: Older schemas used a PostgreSQL enum type named `rolename`, but
+            # later migrations migrated these columns to VARCHAR and dropped enums.
+            # Only attempt to mutate the enum if it still exists.
+            enum_exists = bind.execute(
+                sa.text("SELECT 1 FROM pg_type WHERE typname = 'rolename' LIMIT 1")
+            ).fetchone()
+            if enum_exists:
+                op.execute("ALTER TYPE rolename ADD VALUE IF NOT EXISTS 'auditoria'")
 
     # Insert only if not already present (idempotent for dev DBs).
     existing = bind.execute(sa.text("SELECT 1 FROM roles WHERE name = :name LIMIT 1"), {"name": "auditoria"}).fetchone()

@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "alembic": "^0.0.3"
+  },
+  "devDependencies": {
+    "supabase": "^2.72.8"
   }
 }

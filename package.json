@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "brew": "^0.0.8",
+    "render": "^0.1.4",
     "supabase": "^2.72.8"
   }
 }

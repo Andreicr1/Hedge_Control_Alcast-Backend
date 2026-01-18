@@ -19,6 +19,8 @@ depends_on = None
 def upgrade() -> None:
     dialect = op.get_bind().dialect.name
 
+    emit_exports_default = sa.text("1") if dialect == "sqlite" else sa.text("true")
+
     op.create_table(
         "finance_pipeline_runs",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
@@ -26,7 +28,7 @@ def upgrade() -> None:
         sa.Column("as_of_date", sa.Date(), nullable=False, index=True),
         sa.Column("scope_filters", sa.JSON(), nullable=True),
         sa.Column("mode", sa.String(length=16), nullable=False, server_default="materialize"),
-        sa.Column("emit_exports", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("emit_exports", sa.Boolean(), nullable=False, server_default=emit_exports_default),
         sa.Column("inputs_hash", sa.String(length=64), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False, server_default="queued", index=True),
         sa.Column("requested_by_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),

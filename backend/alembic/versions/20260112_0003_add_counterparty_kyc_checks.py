@@ -7,6 +7,7 @@ Create Date: 2026-01-12
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 
 
 # revision identifiers, used by Alembic.
@@ -25,12 +26,31 @@ def upgrade() -> None:
         with ctx.autocommit_block():
             op.execute("ALTER TYPE documentownertype ADD VALUE IF NOT EXISTS 'counterparty'")
 
+        owner_type_enum = PGEnum(
+            "customer",
+            "supplier",
+            "counterparty",
+            name="documentownertype",
+            create_type=False,
+        )
+    else:
+        # SQLite / non-Postgres: keep it flexible (no CHECK constraint) so enum expansions
+        # don't require table rebuilds during local dev.
+        owner_type_enum = sa.Enum(
+            "customer",
+            "supplier",
+            "counterparty",
+            name="documentownertype",
+            native_enum=False,
+            create_constraint=False,
+        )
+
     op.create_table(
         "kyc_checks",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column(
             "owner_type",
-            sa.Enum("customer", "supplier", "counterparty", name="documentownertype"),
+            owner_type_enum,
             nullable=False,
         ),
         sa.Column("owner_id", sa.Integer(), nullable=False),
