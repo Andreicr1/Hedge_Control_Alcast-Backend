@@ -80,6 +80,8 @@ fi
 
 if [ "${RUN_MIGRATIONS_ON_START:-false}" = "true" ]; then
   echo "[startup] Running alembic migrations..."
+  echo "[startup] Bootstrapping alembic version (if needed)..."
+  python -m app.scripts.alembic_bootstrap
   alembic upgrade head
 else
   echo "[startup] Skipping migrations (set RUN_MIGRATIONS_ON_START=true to enable)."
