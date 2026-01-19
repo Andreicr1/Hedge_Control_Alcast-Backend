@@ -65,6 +65,13 @@ class DocumentOwnerType(PyEnum):
     counterparty = "counterparty"
 
 
+class TreasuryDecisionKind(PyEnum):
+    hedge = "hedge"
+    do_not_hedge = "do_not_hedge"
+    roll = "roll"
+    close = "close"
+
+
 class RfqStatus(PyEnum):
     draft = "draft"
     pending = "pending"
@@ -1108,6 +1115,71 @@ class Exposure(Base):
     contract_links = relationship(
         "ContractExposure", back_populates="exposure", cascade="all, delete-orphan"
     )
+
+    treasury_decisions = relationship(
+        "TreasuryDecision",
+        back_populates="exposure",
+        cascade="all, delete-orphan",
+        order_by="TreasuryDecision.id.desc()",
+    )
+
+
+class TreasuryDecision(Base):
+    __tablename__ = "treasury_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    exposure_id: Mapped[int] = mapped_column(ForeignKey("exposures.id"), nullable=False)
+    decision_kind: Mapped[TreasuryDecisionKind] = mapped_column(
+        Enum(TreasuryDecisionKind, native_enum=False),
+        nullable=False,
+        index=True,
+    )
+
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    # Captures non-blocking KYC evaluation output at decision time.
+    kyc_gate_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    exposure = relationship("Exposure", back_populates="treasury_decisions")
+    created_by_user = relationship("User", lazy="joined")
+    kyc_override = relationship(
+        "TreasuryKycOverride",
+        back_populates="decision",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class TreasuryKycOverride(Base):
+    __tablename__ = "treasury_kyc_overrides"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    decision_id: Mapped[int] = mapped_column(
+        ForeignKey("treasury_decisions.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    snapshot_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    decision = relationship("TreasuryDecision", back_populates="kyc_override")
+    created_by_user = relationship("User", lazy="joined")
 
 
 class HedgeTask(Base):

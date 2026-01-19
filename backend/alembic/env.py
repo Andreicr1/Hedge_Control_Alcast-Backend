@@ -2,6 +2,7 @@ import sys
 from logging.config import fileConfig
 
 from alembic import context
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
 sys.path.append(".")
@@ -50,6 +51,35 @@ def run_migrations_online() -> None:
             );
         """))
         connection.commit()
+
+        # SQLite dev DBs have historically been created via Base.metadata.create_all(),
+        # which means schema exists but alembic_version may be empty.
+        # To keep local VS Code tasks stable, detect this scenario and stamp head.
+        try:
+            dialect = connection.dialect.name
+            if dialect == "sqlite":
+                count = int(connection.execute(text("select count(*) from alembic_version")).scalar() or 0)
+                if count == 0:
+                    # If core tables exist, assume schema was bootstrapped outside Alembic.
+                    roles_exists = bool(
+                        connection.execute(
+                            text(
+                                "select 1 from sqlite_master where type='table' and name='roles' limit 1"
+                            )
+                        ).scalar()
+                    )
+                    if roles_exists:
+                        script = ScriptDirectory.from_config(config)
+                        head = script.get_current_head()
+                        if head:
+                            connection.execute(text("delete from alembic_version"))
+                            connection.execute(
+                                text("insert into alembic_version(version_num) values (:v)"), {"v": head}
+                            )
+                            connection.commit()
+        except Exception:
+            # Never block migrations due to this convenience path.
+            pass
 
         context.configure(
             connection=connection,

@@ -34,6 +34,7 @@ from app.api.routes import (
     sales_orders,
     settlements,
     suppliers,
+    treasury_decisions,
     timeline,
     westmetall,
     whatsapp_business,
@@ -80,3 +81,4 @@ api_router.include_router(deals.router)
 api_router.include_router(whatsapp_business.router)
 api_router.include_router(contracts.router)
 api_router.include_router(settlements.router)
+api_router.include_router(treasury_decisions.router)

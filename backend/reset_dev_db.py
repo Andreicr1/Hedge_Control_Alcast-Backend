@@ -15,6 +15,9 @@ os.chdir(backend_dir)
 from dotenv import load_dotenv
 load_dotenv(backend_dir / ".env", override=True)
 
+# Always target the local sqlite dev DB for this script.
+os.environ["DATABASE_URL"] = "sqlite:///./dev.db"
+
 # Now import app modules
 from app.database import Base, engine, SessionLocal
 from app import models
@@ -27,8 +30,9 @@ def main():
     if db_path.exists():
         print(f"Removing existing database: {db_path}")
         db_path.unlink()
-    
-    # Create all tables
+
+    # Create all tables (SQLAlchemy) to match current ORM models.
+    # Alembic tasks are kept stable by the SQLite auto-stamp logic in alembic/env.py.
     print("Creating database tables...")
     Base.metadata.create_all(bind=engine)
     print("✅ Tables created")
