@@ -74,20 +74,18 @@ def get_lme_aluminum_live(db: Session = Depends(get_db)) -> Dict:
     cash = _latest(db, "P3Y00", "live")
     three_month = _latest(db, "P4Y00", "live")
 
-    if not cash or not three_month:
-        raise HTTPException(status_code=404, detail="Missing live LME aluminum prices")
+    def _leg(symbol: str, row: LMEPrice | None) -> Dict:
+        if not row:
+            return {"symbol": symbol, "price": None, "ts": None}
+        return {
+            "symbol": row.symbol,
+            "price": float(row.price),
+            "ts": row.ts_price.astimezone(timezone.utc).isoformat(),
+        }
 
     return {
-        "cash": {
-            "symbol": cash.symbol,
-            "price": float(cash.price),
-            "ts": cash.ts_price.astimezone(timezone.utc).isoformat(),
-        },
-        "three_month": {
-            "symbol": three_month.symbol,
-            "price": float(three_month.price),
-            "ts": three_month.ts_price.astimezone(timezone.utc).isoformat(),
-        },
+        "cash": _leg("P3Y00", cash),
+        "three_month": _leg("P4Y00", three_month),
     }
 
 
