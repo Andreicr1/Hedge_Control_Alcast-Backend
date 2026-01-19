@@ -1,0 +1,509 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Backend • Gate (ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.1 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.1-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.2 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.2-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.3 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.3-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.4 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.4-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.5 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.5-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.6 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.6-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.7 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.7-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "Backend • Gate (6.3.8 • ruff + pytest • scoped • py311)",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\backend-gate-6.3.8-scoped-py311.ps1"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			}
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Diagnose: Backend ruff check (scoped)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check --output-format=full app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped (rerun)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped (rerun2)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped (rerun3)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped (rerun4)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Fix: ruff --fix imports (timeline.py)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check --fix app/api/routes/timeline.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped (final)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Fix: ruff format (test file)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "T1 Smoke: Backend ruff scoped (green?)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/timeline.py app/services/timeline_attachments_storage.py app/schemas/timeline.py tests/test_timeline_human_attachments_endpoint.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend Dev Server",
+			"type": "shell",
+			"command": "cd c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend && set DATABASE_URL=sqlite:///./dev.db && set SECRET_KEY=test-secret-key-12345678901234567890 && set ENVIRONMENT=development && C:\\Projetos\\Hedge_Control_Alcast-Backend\\.venv311\\Scripts\\uvicorn.exe app.main:app --port 8000",
+			"isBackground": true
+		},
+		{
+			"label": "Start Backend Server",
+			"type": "shell",
+			"command": "cd c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend && start-dev.bat",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend Server",
+			"type": "shell",
+			"command": "Set-Location 'c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend'; .\\start-dev.bat",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend Dev Server",
+			"type": "shell",
+			"command": "Set-Location 'c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend'; .\\start-dev.bat",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Temp: ruff+format check contract files",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/contracts.py app/schemas/contracts.py app/schemas/__init__.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/contracts.py app/schemas/contracts.py app/schemas/__init__.py",
+			"isBackground": false
+		},
+		{
+			"label": "Temp: ruff format contract route",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format app/api/routes/contracts.py",
+			"isBackground": false
+		},
+		{
+			"label": "Temp: pytest contract schemas",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m pytest -q tests/test_contract_schemas.py",
+			"isBackground": false
+		},
+		{
+			"label": "Backend • Alembic upgrade head (dev.db)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m alembic upgrade head",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Backend • Seed Realistic Data (ALL • reset)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe scripts/seed_realistic_data.py --company all --reset",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Backend • Seed Realistic Data (Trading • reset)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe scripts/seed_realistic_data.py --company alcast_trading --reset",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Backend • Seed Realistic Data (Brasil • reset)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe scripts/seed_realistic_data.py --company alcast_brasil --reset",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Backend • Seed Realistic Data (ALL • no reset)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe scripts/seed_realistic_data.py --company all",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Backend • Inspect dev.db (tables + alembic_version)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -c \"import os,sqlite3; import pathlib; p=pathlib.Path('dev.db').resolve(); print('DB',p); con=sqlite3.connect(str(p)); cur=con.cursor(); cur.execute(\\\"select name from sqlite_master where type='table' order by name\\\"); tables=[r[0] for r in cur.fetchall()]; print('tables',len(tables)); print('\\n'.join(tables[:40])); print('...'); print('has alembic_version', 'alembic_version' in tables);\\nif 'alembic_version' in tables:\\n  try:\\n    cur.execute('select version_num from alembic_version'); print('alembic_version rows',cur.fetchall());\\n  except Exception as e:\\n    print('alembic_version read error',e);\\ncon.close()\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Inspect dev.db (quick)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -c \"import sqlite3,pathlib; p=pathlib.Path('dev.db').resolve(); print('DB',p); con=sqlite3.connect(str(p)); cur=con.cursor(); cur.execute(\\\"select name from sqlite_master where type='table' order by name\\\"); tables=[r[0] for r in cur.fetchall()]; print('tables',len(tables)); print('has alembic_version',('alembic_version' in tables)); print('sample',tables[:30]);\nif 'alembic_version' in tables:\n  print('alembic_version',cur.execute('select version_num from alembic_version').fetchall());\ncon.close()\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Inspect dev.db (safe quoting)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -c 'import sqlite3,pathlib; p=pathlib.Path(\"dev.db\").resolve(); print(\"DB\",p); con=sqlite3.connect(str(p)); cur=con.cursor(); cur.execute(\"select name from sqlite_master where type=\\\"table\\\" order by name\"); tables=[r[0] for r in cur.fetchall()]; print(\"tables\",len(tables)); print(\"has_alembic_version\",(\"alembic_version\" in tables)); print(\"sample\",tables[:40]); print(\"alembic_version\", cur.execute(\"select version_num from alembic_version\").fetchall() if \"alembic_version\" in tables else None); con.close()'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Inspect dev.db (minimal)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -c 'import sqlite3,pathlib; p=pathlib.Path(\"dev.db\").resolve(); con=sqlite3.connect(str(p)); cur=con.cursor(); cur.execute(\"select name from sqlite_master where type=\\\"table\\\" order by name\"); tables=[r[0] for r in cur.fetchall()]; print(\"DB\",p); print(\"tables\",len(tables)); print(\"has_alembic_version\",(\"alembic_version\" in tables)); print(\"has_contracts\",(\"contracts\" in tables)); print(\"tail\",tables[-10:]); con.close()'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Python smoke (-c)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -c 'print(1)'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Inspect dev.db (script)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe scripts/inspect_dev_db.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Kill port 8001",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $port=8001; $conns=Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue; if ($conns) { $pids=$conns.OwningProcess | Sort-Object -Unique; Write-Host \"Port $port in use by PID(s): $($pids -join ', ')\"; foreach ($pid in $pids) { Stop-Process -Id $pid -Force; Write-Host \"Stopped PID $pid\" } } else { Write-Host \"Port $port not in use\" }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Kill port 8001 (safe quoting)",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $port=8001; $conns=Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue; if ($conns) { $pids=$conns.OwningProcess | Sort-Object -Unique; Write-Host ('Port ' + $port + ' in use by PIDs: ' + ($pids -join ', ')); foreach ($pid in $pids) { Stop-Process -Id $pid -Force; Write-Host ('Stopped PID ' + $pid) } } else { Write-Host ('Port ' + $port + ' not in use') }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Kill port 8001 (procId)",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; $port=8001; $conns=Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue; if ($conns) { $pids=$conns.OwningProcess | Sort-Object -Unique; Write-Host ('Port ' + $port + ' in use by PIDs: ' + ($pids -join ', ')); foreach ($procId in $pids) { Stop-Process -Id $procId -Force; Write-Host ('Stopped PID ' + $procId) } } else { Write-Host ('Port ' + $port + ' not in use') }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Backup dev.db",
+			"type": "shell",
+			"command": "Set-Location 'c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend'; $ts=Get-Date -Format 'yyyyMMdd-HHmmss'; foreach ($f in @('dev.db','dev.db-shm','dev.db-wal')) { if (Test-Path $f) { Rename-Item $f ($f + '.bak-' + $ts); Write-Host ('Backed up ' + $f) } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • List dev.db files",
+			"type": "shell",
+			"command": "Set-Location 'c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend'; Get-ChildItem -Name 'dev.db*'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Check ports 8000-8004",
+			"type": "shell",
+			"command": "foreach ($p in 8000,8001,8002,8003,8004) { $c=Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue; if ($c) { $pids=($c.OwningProcess | Sort-Object -Unique) -join ', '; Write-Host ('Port ' + $p + ' -> PID(s) ' + $pids) } else { Write-Host ('Port ' + $p + ' -> free') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Kill ports 8000+8001",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Stop'; foreach ($port in 8000,8001) { $conns=Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue; if (-not $conns) { Write-Host ('Port ' + $port + ' -> free'); continue }; $pids=$conns.OwningProcess | Sort-Object -Unique; Write-Host ('Port ' + $port + ' -> killing PID(s): ' + ($pids -join ', ')); foreach ($procId in $pids) { try { Stop-Process -Id $procId -Force; Write-Host ('Stopped PID ' + $procId) } catch { Write-Host ('Failed to stop PID ' + $procId + ': ' + $_.Exception.Message) } } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Check ports 8000+8001",
+			"type": "shell",
+			"command": "foreach ($p in 8000,8001) { $c=Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue; if ($c) { $pids=($c.OwningProcess | Sort-Object -Unique) -join ', '; Write-Host ('Port ' + $p + ' -> PID(s) ' + $pids) } else { Write-Host ('Port ' + $p + ' -> free') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Describe PIDs 3640+64044",
+			"type": "shell",
+			"command": "foreach ($id in 3640,64044) { try { $p=Get-Process -Id $id -ErrorAction Stop; Write-Host ('PID ' + $id + ': ' + $p.ProcessName + ' (' + $p.Path + ')') } catch { Write-Host ('PID ' + $id + ': not found') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Port state 8000+8001",
+			"type": "shell",
+			"command": "foreach ($p in 8000,8001) { $c=Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue; if ($c) { Write-Host ('Port ' + $p + ' connections:'); $c | Select-Object -First 10 LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess | Format-Table | Out-String | Write-Host } else { Write-Host ('Port ' + $p + ' -> none') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Describe listening PIDs",
+			"type": "shell",
+			"command": "foreach ($id in 48060,71028,64044) { try { $p=Get-Process -Id $id -ErrorAction Stop; $path=''; try { $path=$p.Path } catch {}; Write-Host ('PID ' + $id + ': ' + $p.ProcessName + ' ' + $path) } catch { Write-Host ('PID ' + $id + ': not found') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Kill listening processes 8000/8001",
+			"type": "shell",
+			"command": "$ErrorActionPreference='Continue'; $ports=8000,8001; $pids=@(); foreach ($port in $ports) { $pids += (Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' } | Select-Object -ExpandProperty OwningProcess) }; $pids = $pids | Sort-Object -Unique; Write-Host ('Listening PIDs: ' + ($pids -join ', ')); foreach ($procId in $pids) { try { $p=Get-Process -Id $procId -ErrorAction Stop; Write-Host ('Stopping PID ' + $procId + ' (' + $p.ProcessName + ')'); Stop-Process -Id $procId -Force } catch { Write-Host ('PID ' + $procId + ' not stoppable/found: ' + $_.Exception.Message) } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Verify ports 8000/8001 free",
+			"type": "shell",
+			"command": "foreach ($p in 8000,8001) { $c=Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }; if ($c) { $pids=($c.OwningProcess | Sort-Object -Unique) -join ', '; Write-Host ('Port ' + $p + ' still listening PID(s): ' + $pids) } else { Write-Host ('Port ' + $p + ' free') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Check PID 71028",
+			"type": "shell",
+			"command": "try { $p=Get-Process -Id 71028 -ErrorAction Stop; Write-Host ('PID 71028 alive: ' + $p.ProcessName + ' ' + $p.Path) } catch { Write-Host 'PID 71028 not found' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Verify ports after wait",
+			"type": "shell",
+			"command": "Start-Sleep -Seconds 2; foreach ($p in 8000,8001) { $c=Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }; if ($c) { $pids=($c.OwningProcess | Sort-Object -Unique) -join ', '; Write-Host ('Port ' + $p + ' listening PID(s): ' + $pids) } else { Write-Host ('Port ' + $p + ' free') } }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • netstat 8000/8001",
+			"type": "shell",
+			"command": "netstat -ano | findstr \":8000 \" ; netstat -ano | findstr \":8001 \"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • tasklist PIDs",
+			"type": "shell",
+			"command": "tasklist /FI \"PID eq 48060\" ; tasklist /FI \"PID eq 3640\" ; tasklist /FI \"PID eq 64044\" ; tasklist /FI \"PID eq 71028\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • tasklist PIDs (safe)",
+			"type": "shell",
+			"command": "tasklist /FI 'PID eq 48060'; tasklist /FI 'PID eq 3640'; tasklist /FI 'PID eq 64044'; tasklist /FI 'PID eq 71028'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Test-NetConnection 8001",
+			"type": "shell",
+			"command": "Test-NetConnection -ComputerName 127.0.0.1 -Port 8001 | Select-Object ComputerName,RemotePort,TcpTestSucceeded | Format-Table | Out-String | Write-Host",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Kill-Port 8001 (profile fn)",
+			"type": "shell",
+			"command": "Kill-Port 8001",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • Test port 8001 after Kill-Port",
+			"type": "shell",
+			"command": "Test-NetConnection -ComputerName 127.0.0.1 -Port 8001 | Select-Object TcpTestSucceeded | Format-Table | Out-String | Write-Host",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend • List python processes",
+			"type": "shell",
+			"command": "Get-Process python -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path | Format-Table -AutoSize | Out-String | Write-Host",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

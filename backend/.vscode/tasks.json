@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Backend API Server",
+			"type": "shell",
+			"command": "C:\\Projetos\\Hedge_Control_Alcast-Backend\\.venv311\\Scripts\\uvicorn.exe app.main:app --port 8000",
+			"isBackground": true
+		},
+		{
+			"label": "Temp: ruff+format check contract files",
+			"type": "shell",
+			"command": "C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff check app/api/routes/contracts.py app/schemas/contracts.py app/schemas/__init__.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m ruff format --check app/api/routes/contracts.py app/schemas/contracts.py app/schemas/__init__.py",
+			"isBackground": false
+		},
+		{
+			"label": "Backend • Alembic upgrade head (dev.db)",
+			"type": "shell",
+			"command": "Set-Location \"c:\\Projetos\\Hedge_Control_Alcast-Backend\\backend\"; C:/Projetos/Hedge_Control_Alcast-Backend/.venv311/Scripts/python.exe -m alembic upgrade head",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

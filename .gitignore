@@ -3,6 +3,10 @@
 # Local troubleshooting artifacts
 Logs Render.txt
 
+# Example PDFs (bank statements, screenshots, etc.)
+*.pdf
+*.PDF
+
 # Python
 __pycache__/
 *.py[cod]
@@ -42,6 +46,9 @@ data/~$*.xlsx
 .DS_Store
 Thumbs.db
 .vscode/
+!.vscode/
+!.vscode/tasks.json
+!.vscode/*.ps1
 
 # Node artifacts (if any)
 node_modules/
@@ -53,4 +60,5 @@ node_modules/
 *.md
 !README.md
 !**/README.md
+!backend/scripts/README_SEED_REALISTIC.md
 
