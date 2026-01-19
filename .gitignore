@@ -60,5 +60,7 @@ node_modules/
 *.md
 !README.md
 !**/README.md
-!backend/scripts/README_SEED_REALISTIC.md
+
+# Local plan docs (keep out of git)
+PHASES_4_5_6_CONSOLIDATED_PLAN.md
 
