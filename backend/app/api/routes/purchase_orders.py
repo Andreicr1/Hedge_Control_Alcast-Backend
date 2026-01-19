@@ -213,10 +213,16 @@ def update_purchase_order(
             models.DealLink.entity_type == models.DealEntityType.po,
             models.DealLink.entity_id == po.id,
         ).delete(synchronize_session=False)
-        try:
-            link_purchase_order_to_deal(db, po, int(new_deal_id))
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        db.add(
+            models.DealLink(
+                deal_id=int(new_deal_id),
+                entity_type=models.DealEntityType.po,
+                entity_id=po.id,
+                direction=models.DealDirection.buy,
+                quantity_mt=po.total_quantity_mt,
+                allocation_type=models.DealAllocationType.manual,
+            )
+        )
 
     for field, value in data.items():
         setattr(po, field, value)

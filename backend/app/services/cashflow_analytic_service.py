@@ -4,14 +4,12 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app import models
 from app.schemas.cashflow_analytic import CashFlowLineRead
 from app.services.cashflow_service import build_cashflow_items
-from app.services.exposure_engine import _hedged_quantity_mt, is_floating_pricing_type
-
+from app.services.exposure_engine import _hedged_quantity_mt
 
 _DEFAULT_LME_SYMBOL = "Q7Y00"  # official
 _ALLOWED_LME_SYMBOLS = {"P3Y00", "P4Y00", "Q7Y00"}
