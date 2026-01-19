@@ -69,7 +69,7 @@ def main() -> None:
         db.add(
             models.MarketPrice(
                 source="yahoo",
-                symbol="USDBRL=X",
+                symbol="^USDBRL",
                 price=5.0,
                 currency="BRL",
                 as_of=datetime.fromisoformat("2025-01-09T00:00:00"),
@@ -86,7 +86,11 @@ def main() -> None:
             "as_of": "2025-01-10",
             "reporting": {
                 "reporting_currency": "BRL",
-                "fx": {"mode": "explicit", "fx_symbol": "USDBRL=X", "fx_source": "yahoo"},
+                "fx": {
+                    "mode": "explicit",
+                    "fx_symbol": "^USDBRL",
+                    "fx_source": "barchart_excel_usdbrl",
+                },
             },
             "assumptions": {"forward_price_assumption": 120.0},
         },
@@ -102,7 +106,7 @@ def main() -> None:
                     "reporting_currency": "BRL",
                     "fx": {
                         "mode": "explicit",
-                        "fx_symbol": "USDBRL=X",
+                        "fx_symbol": "^USDBRL",
                         "fx_source": "yahoo",
                     },
                 },

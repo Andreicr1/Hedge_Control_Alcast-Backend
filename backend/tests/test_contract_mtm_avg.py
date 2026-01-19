@@ -87,14 +87,14 @@ def test_contract_mtm_avginter_uses_realized_avg_until_yesterday():
     for day in range(10, 16):
         as_of = datetime(2026, 1, day, 0, 0, 0, tzinfo=timezone.utc)
         db.add(
-            models.MarketPrice(
-                source="westmetall",
-                symbol="ALUMINUM_CASH_SETTLEMENT",
-                contract_month=None,
+            models.LMEPrice(
+                symbol="P3Y00",
+                name="LME Aluminium Cash Settlement",
+                market="LME",
                 price=2100.0,
-                currency="USD",
-                as_of=as_of,
-                fx=False,
+                price_type="close",
+                ts_price=as_of,
+                source="westmetall",
             )
         )
     db.commit()
@@ -172,14 +172,14 @@ def test_monthly_average_matches_daily_average_when_month_complete():
     for day in range(1, 32):
         as_of = datetime(2025, 12, day, 0, 0, 0, tzinfo=timezone.utc)
         db.add(
-            models.MarketPrice(
-                source="westmetall",
-                symbol="ALUMINUM_CASH_SETTLEMENT",
-                contract_month=None,
+            models.LMEPrice(
+                symbol="P3Y00",
+                name="LME Aluminium Cash Settlement",
+                market="LME",
                 price=3000.0,
-                currency="USD",
-                as_of=as_of,
-                fx=False,
+                price_type="close",
+                ts_price=as_of,
+                source="westmetall",
             )
         )
     db.commit()

@@ -81,7 +81,7 @@ def test_so_link_validation_and_duplicate_ids(client, db_session, admin_user):
     payload = {
         "customer_id": cust.id,
         "total_quantity_mt": 50.0,
-        "pricing_type": "monthly_average",
+        "pricing_type": "AVG",
         "lme_premium": 75.0,
     }
 

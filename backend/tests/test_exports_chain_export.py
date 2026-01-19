@@ -104,7 +104,7 @@ def test_exports_chain_export_generates_csv_pdf_and_bundle_deterministically(_te
             product="AL",
             total_quantity_mt=10.0,
             unit_price=1000.0,
-            pricing_type=models.PricingType.monthly_average,
+            pricing_type=models.PriceType.AVG,
             status=models.OrderStatus.draft,
             created_at=seed_time,
         )
@@ -141,7 +141,7 @@ def test_exports_chain_export_generates_csv_pdf_and_bundle_deterministically(_te
             product="AL",
             total_quantity_mt=10.0,
             unit_price=900.0,
-            pricing_type=models.PricingType.monthly_average,
+            pricing_type=models.PriceType.AVG,
             status=models.OrderStatus.draft,
             created_at=seed_time,
             lme_premium=0.0,

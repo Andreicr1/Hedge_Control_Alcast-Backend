@@ -102,7 +102,7 @@ def test_exports_state_at_time_contains_expected_chain_and_is_deterministic(_tem
             product="AL",
             total_quantity_mt=10.0,
             unit_price=1000.0,
-            pricing_type=models.PricingType.monthly_average,
+            pricing_type=models.PriceType.AVG,
             status=models.OrderStatus.draft,
             created_at=seed_time,
         )
@@ -139,7 +139,7 @@ def test_exports_state_at_time_contains_expected_chain_and_is_deterministic(_tem
             product="AL",
             total_quantity_mt=5.0,
             unit_price=900.0,
-            pricing_type=models.PricingType.monthly_average,
+            pricing_type=models.PriceType.AVG,
             status=models.OrderStatus.draft,
             created_at=seed_time,
         )

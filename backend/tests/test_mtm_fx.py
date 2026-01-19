@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -47,18 +47,24 @@ def test_mtm_with_fx_conversion():
 
     # FX
     db.add(
-        models.MarketPrice(
-            source="yahoo",
-            symbol="USDBRL=X",
+        models.LMEPrice(
+            symbol="^USDBRL",
+            name="U.S. Dollar/Brazilian Real",
+            market="FX",
             price=5.0,
-            currency="BRL",
-            as_of=datetime.utcnow(),
-            fx=True,
+            price_type="close",
+            ts_price=datetime.utcnow().astimezone(timezone.utc),
+            source="barchart_excel_usdbrl",
         )
     )
     db.commit()
 
-    res = compute_mtm_for_hedge(db, hedge.id, fx_symbol="USDBRL=X", pricing_source="yahoo")
+    res = compute_mtm_for_hedge(
+        db,
+        hedge.id,
+        fx_symbol="^USDBRL",
+        pricing_source="barchart_excel_usdbrl",
+    )
     assert res is not None
     # (2300-2200) * 50 = 5000 USD; FX 5.0 -> 25000 BRL
     assert res.mtm_value == 25000.0

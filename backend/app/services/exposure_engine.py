@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app import models
-from app.models.domain import ExposureStatus, PricingType
+from app.models.domain import ExposureStatus, PriceType
 
 
-def is_floating_pricing_type(pricing_type: PricingType) -> bool:
-    return pricing_type != PricingType.fixed
+def is_floating_pricing_type(pricing_type: PriceType) -> bool:
+    return pricing_type in {PriceType.AVG, PriceType.AVG_INTER, PriceType.C2R}
 
 
 @dataclass(frozen=True)
@@ -90,10 +90,9 @@ def reconcile_sales_order_exposures(
     so: models.SalesOrder,
 ) -> ExposureReconcileResult:
     floating = is_floating_pricing_type(so.pricing_type)
-    is_open = getattr(so, "status", None) not in {
-        models.OrderStatus.cancelled,
-        models.OrderStatus.completed,
-    }
+    # Institutional rule: exposures are only eligible for *active* orders.
+    # Draft orders must not generate exposures.
+    is_open = getattr(so, "status", None) == models.OrderStatus.active
     open_exposures = _open_exposures_for_source(
         db=db,
         source_type=models.MarketObjectType.so,
@@ -190,10 +189,8 @@ def reconcile_purchase_order_exposures(
     po: models.PurchaseOrder,
 ) -> ExposureReconcileResult:
     floating = is_floating_pricing_type(po.pricing_type)
-    is_open = getattr(po, "status", None) not in {
-        models.OrderStatus.cancelled,
-        models.OrderStatus.completed,
-    }
+    # Institutional rule: exposures are only eligible for *active* orders.
+    is_open = getattr(po, "status", None) == models.OrderStatus.active
     open_exposures = _open_exposures_for_source(
         db=db,
         source_type=models.MarketObjectType.po,

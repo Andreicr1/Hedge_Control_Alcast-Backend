@@ -66,7 +66,7 @@ def _seed_avg_contract(settlement_date_str: str):
             customer_id=customer.id,
             product="AL",
             total_quantity_mt=10.0,
-            pricing_type=models.PricingType.monthly_average,
+            pricing_type=models.PriceType.AVG,
             lme_premium=0.0,
             status=models.OrderStatus.draft,
         )
@@ -113,12 +113,14 @@ def _seed_avg_contract(settlement_date_str: str):
 
         # One day of published cash settlement for Jan 1st 2025.
         db.add(
-            models.MarketPrice(
-                source="test",
-                symbol="ALUMINUM_CASH_SETTLEMENT",
+            models.LMEPrice(
+                symbol="P3Y00",
+                name="LME Aluminium Cash Settlement",
+                market="LME",
                 price=110.0,
-                currency="USD",
-                as_of=datetime.fromisoformat("2025-01-01T00:00:00"),
+                price_type="close",
+                ts_price=datetime.fromisoformat("2025-01-01T00:00:00+00:00"),
+                source="test",
             )
         )
 

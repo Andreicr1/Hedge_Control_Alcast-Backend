@@ -19,7 +19,7 @@ _finance_admin_or_audit_dep = Depends(
 
 
 def _parse_policy_key(policy_key: str) -> tuple[str, str, str]:
-    """Parse canonical policy_key: "BRL:USDBRL=X@yahoo" -> (BRL, USDBRL=X, yahoo)."""
+    """Parse canonical policy_key: "BRL:^USDBRL@barchart_excel_usdbrl" -> (BRL, ^USDBRL, barchart_excel_usdbrl)."""
     s = (policy_key or "").strip()
     if not s or ":" not in s:
         raise ValueError("invalid policy_key")

@@ -2,6 +2,7 @@ from app.models.cashflow_baseline import CashflowBaselineItem, CashflowBaselineR
 from app.models.domain import (
     AuditLog,
     Contract,
+    ContractExposure,
     ContractStatus,
     Counterparty,
     CounterpartyType,
@@ -59,10 +60,12 @@ from app.models.domain import (
     WhatsAppStatus,
     WorkflowDecision,
     WorkflowRequest,
+    PriceType,
 )
 from app.models.finance_risk_flags import FinanceRiskFlag, FinanceRiskFlagRun
 from app.models.mtm_contract_snapshot import MtmContractSnapshot, MtmContractSnapshotRun
 from app.models.mtm_snapshot import MTMSnapshot
+from app.models.lme_price import LMEPrice
 
 __all__ = [
     "Role",
@@ -120,6 +123,7 @@ __all__ = [
     "DealLifecycleStatus",
     "ContractStatus",
     "Contract",
+    "ContractExposure",
     "DocumentOwnerType",
     "KycDocument",
     "CreditCheck",
@@ -131,4 +135,6 @@ __all__ = [
     "CashflowBaselineItem",
     "FinanceRiskFlagRun",
     "FinanceRiskFlag",
+    "PriceType",
+    "LMEPrice",
 ]

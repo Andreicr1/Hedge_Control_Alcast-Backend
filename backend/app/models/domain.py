@@ -47,6 +47,13 @@ class PricingType(PyEnum):
     lme_premium = "lme_premium"
 
 
+class PriceType(PyEnum):
+    AVG = "AVG"
+    AVG_INTER = "AVGInter"
+    FIX = "Fix"
+    C2R = "C2R"
+
+
 class CounterpartyType(PyEnum):
     bank = "bank"
     broker = "broker"
@@ -534,10 +541,10 @@ class PurchaseOrder(Base):
     total_quantity_mt: Mapped[float] = mapped_column(Float, nullable=False)
     unit: Mapped[str | None] = mapped_column(String(16), default="MT")
     unit_price: Mapped[float | None] = mapped_column(Float)
-    pricing_type: Mapped[PricingType] = mapped_column(
+    pricing_type: Mapped[PriceType] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
-        Enum(PricingType, native_enum=False),
-        default=PricingType.monthly_average,
+        Enum(PriceType, native_enum=False),
+        default=PriceType.AVG,
         nullable=False,
     )
     pricing_period: Mapped[str | None] = mapped_column(String(32))
@@ -578,10 +585,10 @@ class SalesOrder(Base):
     total_quantity_mt: Mapped[float] = mapped_column(Float, nullable=False)
     unit: Mapped[str | None] = mapped_column(String(16), default="MT")
     unit_price: Mapped[float | None] = mapped_column(Float)
-    pricing_type: Mapped[PricingType] = mapped_column(
+    pricing_type: Mapped[PriceType] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
-        Enum(PricingType, native_enum=False),
-        default=PricingType.monthly_average,
+        Enum(PriceType, native_enum=False),
+        default=PriceType.AVG,
         nullable=False,
     )
     pricing_period: Mapped[str | None] = mapped_column(String(32))
@@ -1316,7 +1323,7 @@ class FxPolicyMap(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # Canonical key, e.g. "BRL:USDBRL=X@yahoo".
+    # Canonical key, e.g. "BRL:^USDBRL@barchart_excel_usdbrl".
     policy_key: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     reporting_currency: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
     fx_symbol: Mapped[str] = mapped_column(String(64), nullable=False)

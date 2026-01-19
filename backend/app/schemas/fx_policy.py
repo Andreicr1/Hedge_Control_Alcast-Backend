@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class FxPolicyCreate(BaseModel):
-    # Canonical key, e.g. "BRL:USDBRL=X@yahoo".
+    # Canonical key, e.g. "BRL:^USDBRL@barchart_excel_usdbrl".
     policy_key: str = Field(..., min_length=3, max_length=128)
     active: bool = True
     notes: Optional[str] = Field(None, max_length=2048)

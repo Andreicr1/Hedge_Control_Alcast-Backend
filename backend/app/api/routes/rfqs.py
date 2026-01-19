@@ -64,13 +64,14 @@ def _link_contract_to_exposures(
     deal_id: int,
     rfq_period: str,
 ) -> None:
+    allowed_types = (models.PriceType.AVG, models.PriceType.AVG_INTER, models.PriceType.C2R)
     # Candidate exposures: open (or partially hedged), floating, belonging to this deal.
     so_exposures = (
         db.query(models.Exposure)
         .join(models.SalesOrder, models.SalesOrder.id == models.Exposure.source_id)
         .filter(models.Exposure.source_type == models.MarketObjectType.so)
         .filter(models.SalesOrder.deal_id == int(deal_id))
-        .filter(models.SalesOrder.pricing_type != models.PricingType.fixed)
+        .filter(models.SalesOrder.pricing_type.in_(allowed_types))
         .filter(models.Exposure.status != models.ExposureStatus.closed)
         .all()
     )
@@ -79,7 +80,7 @@ def _link_contract_to_exposures(
         .join(models.PurchaseOrder, models.PurchaseOrder.id == models.Exposure.source_id)
         .filter(models.Exposure.source_type == models.MarketObjectType.po)
         .filter(models.PurchaseOrder.deal_id == int(deal_id))
-        .filter(models.PurchaseOrder.pricing_type != models.PricingType.fixed)
+        .filter(models.PurchaseOrder.pricing_type.in_(allowed_types))
         .filter(models.Exposure.status != models.ExposureStatus.closed)
         .all()
     )

@@ -33,6 +33,11 @@ backend/storage/
 coverage.xml
 htmlcov/
 
+# Local market data (Excel)
+data/market.xlsx
+data/~$*.xlsx
+~$*.xlsx
+
 # OS / editor
 .DS_Store
 Thumbs.db

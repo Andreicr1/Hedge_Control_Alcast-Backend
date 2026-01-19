@@ -10,7 +10,6 @@ from app import models
 from app.api.deps import require_roles
 from app.database import get_db
 from app.schemas import PurchaseOrderCreate, PurchaseOrderRead, PurchaseOrderUpdate
-from app.services.deal_engine import link_purchase_order_to_deal
 from app.services.document_numbering import next_monthly_number
 from app.services.exposure_engine import (
     close_open_exposures_for_source,
@@ -39,7 +38,12 @@ def list_purchase_orders(
     deal_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(
+            models.RoleName.admin,
+            models.RoleName.compras,
+            models.RoleName.financeiro,
+            models.RoleName.auditoria,
+        )
     ),
 ):
     q = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.supplier))
@@ -61,13 +65,26 @@ def create_purchase_order(
     if not supplier:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Supplier not found")
 
-    if payload.deal_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="deal_id is required for purchase orders",
+    requested_deal_id = getattr(payload, "deal_id", None)
+    if requested_deal_id is not None:
+        deal = db.get(models.Deal, int(requested_deal_id))
+        if not deal:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Deal not found")
+        deal_id = int(deal.id)
+        allocation_type = models.DealAllocationType.manual
+    else:
+        # Purchase Orders must always be linked to a deal.
+        # If caller didn't pick one, we create a fresh deal and link automatically.
+        deal = models.Deal(
+            commodity=payload.product,
+            currency="USD",
+            status=models.DealStatus.open,
+            lifecycle_status=models.DealLifecycleStatus.open,
         )
-    if not db.get(models.Deal, payload.deal_id):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Deal not found")
+        db.add(deal)
+        db.flush()
+        deal_id = int(deal.id)
+        allocation_type = models.DealAllocationType.auto
     if payload.unit_price is not None and payload.unit_price <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Preço unitário deve ser positivo."
@@ -79,7 +96,7 @@ def create_purchase_order(
 
     po = models.PurchaseOrder(
         po_number=po_number,
-        deal_id=payload.deal_id,
+        deal_id=deal_id,
         supplier_id=payload.supplier_id,
         product=payload.product,
         total_quantity_mt=payload.total_quantity_mt,
@@ -100,12 +117,23 @@ def create_purchase_order(
     db.add(po)
     db.flush()
 
-    reconcile = reconcile_purchase_order_exposures(db=db, po=po)
+    # Keep DealLink consistent (even at creation time).
+    db.query(models.DealLink).filter(
+        models.DealLink.entity_type == models.DealEntityType.po,
+        models.DealLink.entity_id == po.id,
+    ).delete(synchronize_session=False)
+    db.add(
+        models.DealLink(
+            deal_id=deal_id,
+            entity_type=models.DealEntityType.po,
+            entity_id=po.id,
+            direction=models.DealDirection.buy,
+            quantity_mt=po.total_quantity_mt,
+            allocation_type=allocation_type,
+        )
+    )
 
-    try:
-        link_purchase_order_to_deal(db, po, payload.deal_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    reconcile = reconcile_purchase_order_exposures(db=db, po=po)
 
     db.commit()
     db.refresh(po)
@@ -130,7 +158,12 @@ def get_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(
+            models.RoleName.admin,
+            models.RoleName.compras,
+            models.RoleName.financeiro,
+            models.RoleName.auditoria,
+        )
     ),
 ):
     po = (

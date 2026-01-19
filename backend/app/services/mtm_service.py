@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from datetime import date
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app import models
+from app.services.lme_price_service import latest_lme_price_prefer_types
 
 
 @dataclass
@@ -14,18 +16,16 @@ class MtmComputation:
     price_used: Optional[float] = None
 
 
-def _latest_market_price(
-    db: Session,
-    symbol: str,
-    source: Optional[str] = None,
-    fx_only: bool = False,
-):
-    query = db.query(models.MarketPrice).filter(models.MarketPrice.symbol == symbol)
-    if source:
-        query = query.filter(models.MarketPrice.source == source)
-    if fx_only:
-        query = query.filter(models.MarketPrice.fx.is_(True))
-    return query.order_by(models.MarketPrice.as_of.desc()).first()
+def _normalize_fx_symbol(sym: Optional[str]) -> Optional[str]:
+    s = (sym or "").strip()
+    if not s:
+        return None
+    if s.startswith("^"):
+        return s
+    # Yahoo FX format (e.g. USDBRL=X) -> ^USDBRL
+    if s.upper().endswith("=X") and len(s) == 8 and s[:6].isalpha():
+        return f"^{s[:6].upper()}"
+    return s
 
 
 def _latest_fx_rate(
@@ -33,13 +33,20 @@ def _latest_fx_rate(
     fx_symbol: Optional[str],
     source: Optional[str] = None,
 ) -> Optional[float]:
-    if not fx_symbol:
+    fx_symbol_norm = _normalize_fx_symbol(fx_symbol)
+    if not fx_symbol_norm:
         return None
-    fx = _latest_market_price(db, fx_symbol, source, fx_only=True)
-    if not fx:
-        # fallback: accept non-fx flagged
-        fx = _latest_market_price(db, fx_symbol, source)
-    return fx.price if fx else None
+
+    # Use the latest known close; fall back to live if close is missing.
+    row = latest_lme_price_prefer_types(
+        db,
+        symbol=fx_symbol_norm,
+        as_of=date.today(),
+        price_types=["close", "official", "live"],
+        market="FX",
+        source=source,
+    )
+    return float(row.price) if row is not None else None
 
 
 def _apply_price_adjustments(

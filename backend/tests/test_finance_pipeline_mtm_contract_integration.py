@@ -104,14 +104,14 @@ def _seed_avginter_active_contract(db):
     for day in range(10, 16):
         as_of = datetime(2026, 1, day, 0, 0, 0, tzinfo=timezone.utc)
         db.add(
-            models.MarketPrice(
-                source="westmetall",
-                symbol="ALUMINUM_CASH_SETTLEMENT",
-                contract_month=None,
+            models.LMEPrice(
+                symbol="P3Y00",
+                name="LME Aluminium Cash Settlement",
+                market="LME",
                 price=2100.0,
-                currency="USD",
-                as_of=as_of,
-                fx=False,
+                price_type="close",
+                ts_price=as_of,
+                source="westmetall",
             )
         )
 

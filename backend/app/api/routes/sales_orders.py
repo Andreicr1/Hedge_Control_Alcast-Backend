@@ -38,7 +38,12 @@ def list_sales_orders(
     deal_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(
+            models.RoleName.admin,
+            models.RoleName.vendas,
+            models.RoleName.financeiro,
+            models.RoleName.auditoria,
+        )
     ),
 ):
     q = db.query(models.SalesOrder).options(joinedload(models.SalesOrder.customer))
@@ -152,7 +157,12 @@ def get_sales_order(
     so_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(
+            models.RoleName.admin,
+            models.RoleName.vendas,
+            models.RoleName.financeiro,
+            models.RoleName.auditoria,
+        )
     ),
 ):
     so = (

@@ -43,7 +43,7 @@ def test_sales_orders_list_filters_by_deal_id():
             "total_quantity_mt": 5,
             "unit": "MT",
             "unit_price": 2500,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )
@@ -60,7 +60,7 @@ def test_sales_orders_list_filters_by_deal_id():
             "total_quantity_mt": 7,
             "unit": "MT",
             "unit_price": 2550,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )
@@ -74,7 +74,7 @@ def test_sales_orders_list_filters_by_deal_id():
             "total_quantity_mt": 9,
             "unit": "MT",
             "unit_price": 2600,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )
@@ -121,7 +121,7 @@ def test_purchase_orders_list_filters_by_deal_id(db_session):
             "supplier_id": supplier.id,
             "product": "Alumínio",
             "total_quantity_mt": 3,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )
@@ -134,7 +134,7 @@ def test_purchase_orders_list_filters_by_deal_id(db_session):
             "supplier_id": supplier.id,
             "product": "Alumínio",
             "total_quantity_mt": 4,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )

@@ -79,10 +79,10 @@ def ingest_westmetall_cash_settlement_for_year(year: int) -> JobResult:
             as_of = as_of_datetime_utc(r.as_of_date)
 
             exists = (
-                db.query(models.MarketPrice.id)
-                .filter(models.MarketPrice.source == "westmetall")
-                .filter(models.MarketPrice.symbol == "ALUMINUM_CASH_SETTLEMENT")
-                .filter(models.MarketPrice.as_of == as_of)
+                db.query(models.LMEPrice.id)
+                .filter(models.LMEPrice.source == "westmetall")
+                .filter(models.LMEPrice.symbol == "P3Y00")
+                .filter(models.LMEPrice.ts_price == as_of)
                 .first()
             )
             if exists:
@@ -90,36 +90,36 @@ def ingest_westmetall_cash_settlement_for_year(year: int) -> JobResult:
                 continue
 
             db.add(
-                models.MarketPrice(
-                    source="westmetall",
-                    symbol="ALUMINUM_CASH_SETTLEMENT",
-                    contract_month=None,
+                models.LMEPrice(
+                    symbol="P3Y00",
+                    name="LME Aluminium Cash Settlement",
+                    market="LME",
                     price=float(r.cash_settlement),
-                    currency="USD",
-                    as_of=as_of,
-                    fx=False,
+                    price_type="close",
+                    ts_price=as_of,
+                    source="westmetall",
                 )
             )
             inserted += 1
 
             if r.three_month_settlement is not None:
                 exists_3m = (
-                    db.query(models.MarketPrice.id)
-                    .filter(models.MarketPrice.source == "westmetall")
-                    .filter(models.MarketPrice.symbol == "ALUMINUM_3M_SETTLEMENT")
-                    .filter(models.MarketPrice.as_of == as_of)
+                    db.query(models.LMEPrice.id)
+                    .filter(models.LMEPrice.source == "westmetall")
+                    .filter(models.LMEPrice.symbol == "P4Y00")
+                    .filter(models.LMEPrice.ts_price == as_of)
                     .first()
                 )
                 if not exists_3m:
                     db.add(
-                        models.MarketPrice(
-                            source="westmetall",
-                            symbol="ALUMINUM_3M_SETTLEMENT",
-                            contract_month=None,
+                        models.LMEPrice(
+                            symbol="P4Y00",
+                            name="LME Aluminium 3M Settlement",
+                            market="LME",
                             price=float(r.three_month_settlement),
-                            currency="USD",
-                            as_of=as_of,
-                            fx=False,
+                            price_type="close",
+                            ts_price=as_of,
+                            source="westmetall",
                         )
                     )
 

@@ -12,12 +12,12 @@ def _is_floating_source(db: Session, exp: models.Exposure) -> bool:
         so = db.get(models.SalesOrder, int(exp.source_id))
         if so is None:
             return False
-        return so.pricing_type != models.PricingType.fixed
+        return so.pricing_type in {models.PriceType.AVG, models.PriceType.AVG_INTER, models.PriceType.C2R}
     if exp.source_type == models.MarketObjectType.po:
         po = db.get(models.PurchaseOrder, int(exp.source_id))
         if po is None:
             return False
-        return po.pricing_type != models.PricingType.fixed
+        return po.pricing_type in {models.PriceType.AVG, models.PriceType.AVG_INTER, models.PriceType.C2R}
     return True
 
 

@@ -1,6 +1,6 @@
 from typing import Callable, Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -118,3 +118,34 @@ def enforce_auditoria_readonly(
             return
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Auditoria is read-only")
+
+
+def require_ingest_token(
+    authorization: str | None = Header(default=None, description="Bearer ingest token"),
+) -> None:
+    """Require operational ingest token.
+
+    This endpoint auth is intentionally decoupled from user auth (OAuth/JWT),
+    so that local operational scripts can post data without a user session.
+    """
+
+    expected = (settings.ingest_token or "").strip()
+    if not expected:
+        # Misconfiguration: disable ingestion rather than allowing open writes.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ingestion is not configured",
+        )
+
+    if not authorization:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+
+    parts = authorization.strip().split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    token = parts[1].strip()
+    if token != expected:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")
+
+    return None

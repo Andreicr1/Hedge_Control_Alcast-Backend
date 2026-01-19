@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     webhook_secret: str | None = Field(default=os.getenv("WEBHOOK_SECRET"))
     scheduler_enabled: bool = Field(default=os.getenv("SCHEDULER_ENABLED", "true"))
 
+    # Private ingestion token for operational scripts (e.g., Excel->API posting).
+    # If not set, ingestion endpoints should reject all requests.
+    ingest_token: str | None = Field(default=os.getenv("INGEST_TOKEN"), env="INGEST_TOKEN")
+
     class Config:
         env_file = ".env"
         case_sensitive = False

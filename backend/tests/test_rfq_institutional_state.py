@@ -43,7 +43,7 @@ def _seed_so(db):
         product="AL",
         total_quantity_mt=10.0,
         unit_price=1000.0,
-        pricing_type=models.PricingType.monthly_average,
+        pricing_type=models.PriceType.AVG,
         status=models.OrderStatus.draft,
         created_at=seed_time,
     )

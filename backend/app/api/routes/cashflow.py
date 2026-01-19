@@ -14,7 +14,12 @@ from app.schemas.cashflow_advanced import (
     CashflowAdvancedPreviewRequest,
     CashflowAdvancedPreviewResponse,
 )
+from app.schemas.cashflow_analytic import CashFlowLineRead
 from app.services.cashflow_advanced_service import build_cashflow_advanced_preview
+from app.services.cashflow_analytic_service import (
+    CashflowAnalyticFilters,
+    build_cashflow_analytic_lines,
+)
 from app.services.cashflow_service import build_cashflow_items
 
 router = APIRouter(prefix="/cashflow", tags=["cashflow"])
@@ -73,6 +78,27 @@ def get_cashflow(
 
     items = build_cashflow_items(db, contracts, as_of=as_of_date)
     return CashflowResponseRead(as_of=as_of_date, items=items)
+
+
+@router.get(
+    "/analytic",
+    response_model=list[CashFlowLineRead],
+    dependencies=[Depends(require_roles(models.RoleName.financeiro, models.RoleName.auditoria))],
+)
+def get_cashflow_analytic(
+    start_date: Optional[date] = _START_DATE_Q,
+    end_date: Optional[date] = _END_DATE_Q,
+    as_of: Optional[date] = _AS_OF_Q,
+    deal_id: Optional[int] = _DEAL_ID_Q,
+    db: Session = _DB_DEP,
+):
+    as_of_date = as_of or date.today()
+    filters = CashflowAnalyticFilters(
+        start_date=start_date,
+        end_date=end_date,
+        deal_id=deal_id,
+    )
+    return build_cashflow_analytic_lines(db, as_of=as_of_date, filters=filters)
 
 
 @router.post(

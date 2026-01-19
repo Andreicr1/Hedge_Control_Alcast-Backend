@@ -220,7 +220,7 @@ def test_sales_order_creation_and_validation():
             "total_quantity_mt": 5,
             "unit": "MT",
             "unit_price": 2500,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )
@@ -232,7 +232,7 @@ def test_sales_order_creation_and_validation():
             "customer_id": cust_id,
             "product": "Alumínio",
             "total_quantity_mt": -10,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )

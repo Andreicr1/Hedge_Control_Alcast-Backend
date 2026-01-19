@@ -97,7 +97,7 @@ def test_sales_order_fixed_does_not_create_exposure_and_net_exposure_empty():
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "pricing_period": None,
             "lme_premium": 0.0,
             "status": "draft",
@@ -134,10 +134,10 @@ def test_sales_order_switch_floating_to_fixed_closes_exposure_and_emits_timeline
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
-            "pricing_type": "monthly_average",
+            "pricing_type": "AVG",
             "pricing_period": "2026-01",
             "lme_premium": 0.0,
-            "status": "draft",
+            "status": "active",
         }
 
         r = client.post("/api/sales-orders", json=payload, headers={"X-Request-ID": request_id})
@@ -155,7 +155,7 @@ def test_sales_order_switch_floating_to_fixed_closes_exposure_and_emits_timeline
         # Switch to fixed -> exposure must be closed, net exposure must be empty
         r2 = client.put(
             f"/api/sales-orders/{so_id}",
-            json={"pricing_type": "fixed"},
+            json={"pricing_type": "Fix"},
             headers={"X-Request-ID": request_id},
         )
         assert r2.status_code == 200
@@ -194,7 +194,7 @@ def test_purchase_order_fixed_does_not_create_exposure():
             "deal_id": deal.id,
             "product": "AL",
             "total_quantity_mt": 12.0,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "pricing_period": None,
             "lme_premium": 0.0,
             "status": "draft",
@@ -227,10 +227,10 @@ def test_sales_order_cancelled_closes_exposure_and_cancels_tasks():
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
-            "pricing_type": "monthly_average",
+            "pricing_type": "AVG",
             "pricing_period": "2026-01",
             "lme_premium": 0.0,
-            "status": "draft",
+            "status": "active",
         }
 
         r = client.post("/api/sales-orders", json=payload, headers={"X-Request-ID": request_id})
@@ -278,10 +278,10 @@ def test_sales_order_delete_closes_exposure_and_emits_timeline():
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
-            "pricing_type": "monthly_average",
+            "pricing_type": "AVG",
             "pricing_period": "2026-01",
             "lme_premium": 0.0,
-            "status": "draft",
+            "status": "active",
         }
 
         r = client.post("/api/sales-orders", json=payload, headers={"X-Request-ID": request_id})
@@ -327,10 +327,10 @@ def test_sales_order_reconcile_dedupes_multiple_open_exposures():
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
-            "pricing_type": "monthly_average",
+            "pricing_type": "AVG",
             "pricing_period": "2026-01",
             "lme_premium": 0.0,
-            "status": "draft",
+            "status": "active",
         }
 
         r = client.post("/api/sales-orders", json=payload, headers={"X-Request-ID": request_id})
@@ -377,5 +377,160 @@ def test_sales_order_reconcile_dedupes_multiple_open_exposures():
             .all()
         )
         assert len(open_exps) == 1
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("pricing_type", ["AVG", "AVGInter", "C2R"])
+def test_sales_order_exposure_only_when_active_for_floating(pricing_type: str):
+    client, TestingSessionLocal = _make_client_and_sessionmaker()
+
+    db = TestingSessionLocal()
+    try:
+        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        request_id = str(uuid.uuid4())
+
+        payload = {
+            "customer_id": customer.id,
+            "product": "AL",
+            "total_quantity_mt": 10.0,
+            "pricing_type": pricing_type,
+            "pricing_period": "2026-01",
+            "lme_premium": 0.0,
+            "status": "draft",
+        }
+        r = client.post("/api/sales-orders", json=payload, headers={"X-Request-ID": request_id})
+        assert r.status_code == 201
+        so_id = int(r.json()["id"])
+
+        draft_exps = (
+            db.query(models.Exposure)
+            .filter(models.Exposure.source_type == models.MarketObjectType.so)
+            .filter(models.Exposure.source_id == so_id)
+            .filter(models.Exposure.status != models.ExposureStatus.closed)
+            .all()
+        )
+        assert len(draft_exps) == 0
+
+        r2 = client.put(
+            f"/api/sales-orders/{so_id}",
+            json={"status": "active"},
+            headers={"X-Request-ID": request_id},
+        )
+        assert r2.status_code == 200
+
+        db.expire_all()
+        active_exps = (
+            db.query(models.Exposure)
+            .filter(models.Exposure.source_type == models.MarketObjectType.so)
+            .filter(models.Exposure.source_id == so_id)
+            .filter(models.Exposure.status != models.ExposureStatus.closed)
+            .all()
+        )
+        assert len(active_exps) == 1
+
+        r3 = client.put(
+            f"/api/sales-orders/{so_id}",
+            json={"status": "draft"},
+            headers={"X-Request-ID": request_id},
+        )
+        assert r3.status_code == 200
+
+        db.expire_all()
+        closed_back = (
+            db.query(models.Exposure)
+            .filter(models.Exposure.source_type == models.MarketObjectType.so)
+            .filter(models.Exposure.source_id == so_id)
+            .filter(models.Exposure.status != models.ExposureStatus.closed)
+            .all()
+        )
+        assert len(closed_back) == 0
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("pricing_type", ["AVG", "AVGInter", "C2R"])
+def test_purchase_order_exposure_only_when_active_for_floating(pricing_type: str):
+    client, TestingSessionLocal = _make_client_and_sessionmaker()
+
+    db = TestingSessionLocal()
+    try:
+        _customer, supplier, deal = _seed_customer_supplier_and_deal(db=db)
+        request_id = str(uuid.uuid4())
+
+        payload = {
+            "supplier_id": supplier.id,
+            "deal_id": deal.id,
+            "product": "AL",
+            "total_quantity_mt": 12.0,
+            "pricing_type": pricing_type,
+            "pricing_period": "2026-01",
+            "lme_premium": 0.0,
+            "status": "draft",
+        }
+        r = client.post(
+            "/api/purchase-orders", json=payload, headers={"X-Request-ID": request_id}
+        )
+        assert r.status_code == 201
+        po_id = int(r.json()["id"])
+
+        draft_exps = (
+            db.query(models.Exposure)
+            .filter(models.Exposure.source_type == models.MarketObjectType.po)
+            .filter(models.Exposure.source_id == po_id)
+            .filter(models.Exposure.status != models.ExposureStatus.closed)
+            .all()
+        )
+        assert len(draft_exps) == 0
+
+        r2 = client.put(
+            f"/api/purchase-orders/{po_id}",
+            json={"status": "active"},
+            headers={"X-Request-ID": request_id},
+        )
+        assert r2.status_code == 200
+
+        db.expire_all()
+        active_exps = (
+            db.query(models.Exposure)
+            .filter(models.Exposure.source_type == models.MarketObjectType.po)
+            .filter(models.Exposure.source_id == po_id)
+            .filter(models.Exposure.status != models.ExposureStatus.closed)
+            .all()
+        )
+        assert len(active_exps) == 1
+    finally:
+        db.close()
+
+
+def test_sales_order_fixed_never_creates_exposure_even_when_active():
+    client, TestingSessionLocal = _make_client_and_sessionmaker()
+
+    db = TestingSessionLocal()
+    try:
+        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        request_id = str(uuid.uuid4())
+
+        payload = {
+            "customer_id": customer.id,
+            "product": "AL",
+            "total_quantity_mt": 10.0,
+            "pricing_type": "Fix",
+            "pricing_period": None,
+            "lme_premium": 0.0,
+            "status": "active",
+        }
+        r = client.post("/api/sales-orders", json=payload, headers={"X-Request-ID": request_id})
+        assert r.status_code == 201
+        so_id = int(r.json()["id"])
+
+        exps = (
+            db.query(models.Exposure)
+            .filter(models.Exposure.source_type == models.MarketObjectType.so)
+            .filter(models.Exposure.source_id == so_id)
+            .filter(models.Exposure.status != models.ExposureStatus.closed)
+            .all()
+        )
+        assert len(exps) == 0
     finally:
         db.close()

@@ -43,7 +43,7 @@ def test_sales_order_deal_id_cannot_be_cleared():
             "total_quantity_mt": 5,
             "unit": "MT",
             "unit_price": 2500,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )
@@ -79,7 +79,7 @@ def test_purchase_order_deal_id_cannot_be_cleared(db_session):
             "supplier_id": supplier.id,
             "product": "Alumínio",
             "total_quantity_mt": 3,
-            "pricing_type": "fixed",
+            "pricing_type": "Fix",
             "lme_premium": 0,
         },
     )

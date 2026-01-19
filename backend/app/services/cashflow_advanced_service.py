@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -27,9 +27,10 @@ from app.services.contract_mtm_service import (
     _latest_cash_publish_date,
     compute_realized_avg_cash,
 )
+from app.services.lme_price_service import latest_lme_price_prefer_types
 
 _VERSION = "cashflow.advanced.preview.v1"
-_PROXY_3M_SYMBOL = "ALUMINUM_3M_SETTLEMENT"
+_PROXY_3M_SYMBOL = "P4Y00"  # LME Aluminium 3M (single source: LMEPrice)
 
 _SCENARIO_ORDER = {
     "base": 0,
@@ -69,23 +70,16 @@ def _as_of_end_dt(as_of: date) -> datetime:
     return datetime.combine(as_of, time(23, 59, 59), tzinfo=timezone.utc)
 
 
-def _latest_market_price(
-    db: Session,
-    *,
-    symbol: str,
-    as_of: date,
-    source: Optional[str] = None,
-    fx_only: bool = False,
-) -> Optional[models.MarketPrice]:
-    q = db.query(models.MarketPrice).filter(models.MarketPrice.symbol == symbol)
-    if source:
-        q = q.filter(models.MarketPrice.source == source)
-    if fx_only:
-        q = q.filter(models.MarketPrice.fx.is_(True))
-
-    cutoff = _as_of_end_dt(as_of)
-    q = q.filter(models.MarketPrice.as_of <= cutoff)
-    return q.order_by(models.MarketPrice.as_of.desc(), models.MarketPrice.created_at.desc()).first()
+def _normalize_fx_symbol(sym: Optional[str]) -> Optional[str]:
+    s = (sym or "").strip()
+    if not s:
+        return None
+    if s.startswith("^"):
+        return s
+    # Yahoo FX format (e.g. USDBRL=X) -> ^USDBRL
+    if s.upper().endswith("=X") and len(s) == 8 and s[:6].isalpha():
+        return f"^{s[:6].upper()}"
+    return s
 
 
 def _resolve_fx_rate(
@@ -103,29 +97,31 @@ def _resolve_fx_rate(
 
     # policy_map is supported as a deterministic alias to explicit parameters for now.
     if fx_mode == "policy_map" and policy_key and (not fx_symbol or not fx_source):
-        # format: "BRL:USDBRL=X@yahoo" -> take right side
+        # format: "BRL:^USDBRL@barchart_excel_usdbrl" -> take right side
         try:
             rhs = policy_key.split(":", 1)[1]
             fx_symbol, fx_source = rhs.split("@", 1)
         except Exception:
             pass
 
-    if not fx_symbol:
+    fx_symbol_norm = _normalize_fx_symbol(fx_symbol)
+    if not fx_symbol_norm:
         return None, None, fx_symbol, fx_source
 
-    fx = _latest_market_price(db, symbol=fx_symbol, as_of=as_of, source=fx_source, fx_only=True)
-    if not fx:
-        # fallback: accept non-fx flagged
-        fx = _latest_market_price(
-            db,
-            symbol=fx_symbol,
-            as_of=as_of,
-            source=fx_source,
-            fx_only=False,
-        )
-    if not fx:
-        return None, None, fx_symbol, fx_source
-    return float(fx.price), fx.as_of, fx.symbol, fx.source
+    # Institutional rule: BRL settlement uses the final FX close from D-1.
+    fx_cutoff = as_of - timedelta(days=1)
+    fx_row = latest_lme_price_prefer_types(
+        db,
+        symbol=fx_symbol_norm,
+        as_of=fx_cutoff,
+        price_types=["close", "official", "live"],
+        market="FX",
+        source=fx_source,
+    )
+    if fx_row is None:
+        return None, None, fx_symbol_norm, fx_source
+
+    return float(fx_row.price), fx_row.ts_price, fx_row.symbol, fx_row.source
 
 
 @dataclass(frozen=True)
@@ -205,12 +201,17 @@ def _expected_settlement_value_for_contract(
     else:
         flags.append("assumptions_missing")
         if baseline_method == "proxy_3m":
-            mp = _latest_market_price(db, symbol=_PROXY_3M_SYMBOL, as_of=as_of, source="westmetall")
-            if mp is not None:
-                baseline_price = float(mp.price)
-                baseline_source = "baseline.proxy_3m.westmetall"
+            lp = latest_lme_price_prefer_types(
+                db,
+                symbol=_PROXY_3M_SYMBOL,
+                as_of=as_of,
+                price_types=["close", "live", "official"],
+            )
+            if lp is not None:
+                baseline_price = float(lp.price)
+                baseline_source = f"baseline.proxy_3m.lmeprice.{lp.price_type}"
                 references.proxy_3m_last_published_date = (
-                    references.proxy_3m_last_published_date or mp.as_of.date()
+                    references.proxy_3m_last_published_date or lp.ts_price.date()
                 )
             else:
                 flags.append("proxy_3m_not_available")

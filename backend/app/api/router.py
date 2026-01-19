@@ -18,7 +18,7 @@ from app.api.routes import (
     hedge_tasks,
     hedges,
     inbox,
-    lme_public,
+    lme_market,
     locations,
     market_aluminum,
     market_data,
@@ -73,7 +73,7 @@ api_router.include_router(fx_policies.router)
 api_router.include_router(mtm_snapshot.router)
 api_router.include_router(market_data.router)
 api_router.include_router(market_aluminum.router)
-api_router.include_router(lme_public.router)
+api_router.include_router(lme_market.router)
 api_router.include_router(westmetall.router)
 api_router.include_router(mtm.router)
 api_router.include_router(deals.router)

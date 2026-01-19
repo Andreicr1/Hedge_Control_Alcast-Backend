@@ -8,6 +8,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-1234567890"
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_TEST_DB_PATH}"
 os.environ["ENVIRONMENT"] = "test"
 os.environ["API_V1_STR"] = "/api"  # Ensure /api prefix is used in tests
+os.environ["INGEST_TOKEN"] = "test-ingest-token"
 
 import pytest
 from sqlalchemy import create_engine, text

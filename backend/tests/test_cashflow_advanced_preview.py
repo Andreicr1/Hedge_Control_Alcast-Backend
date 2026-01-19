@@ -79,7 +79,7 @@ def _seed_avg_contract_with_pnl(*, settlement_date: str = "2025-02-05") -> None:
             customer_id=customer.id,
             product="AL",
             total_quantity_mt=10.0,
-            pricing_type=models.PricingType.monthly_average,
+            pricing_type=models.PriceType.AVG,
             lme_premium=0.0,
             status=models.OrderStatus.draft,
         )
@@ -125,25 +125,27 @@ def _seed_avg_contract_with_pnl(*, settlement_date: str = "2025-02-05") -> None:
 
         # One published cash settlement point.
         db.add(
-            models.MarketPrice(
-                source="westmetall",
-                symbol="ALUMINUM_CASH_SETTLEMENT",
+            models.LMEPrice(
+                symbol="P3Y00",
+                name="LME Aluminium Cash Settlement",
+                market="LME",
                 price=110.0,
-                currency="USD",
-                as_of=datetime.fromisoformat("2025-01-01T00:00:00"),
-                fx=False,
+                price_type="close",
+                ts_price=datetime.fromisoformat("2025-01-01T00:00:00+00:00"),
+                source="westmetall",
             )
         )
 
         # Proxy 3M point (fallback method).
         db.add(
-            models.MarketPrice(
-                source="westmetall",
-                symbol="ALUMINUM_3M_SETTLEMENT",
+            models.LMEPrice(
+                symbol="P4Y00",
+                name="LME Aluminium 3M Settlement",
+                market="LME",
                 price=115.0,
-                currency="USD",
-                as_of=datetime.fromisoformat("2025-01-01T00:00:00"),
-                fx=False,
+                price_type="close",
+                ts_price=datetime.fromisoformat("2025-01-01T00:00:00+00:00"),
+                source="westmetall",
             )
         )
 
@@ -329,13 +331,14 @@ def test_preview_multi_currency_converts_when_fx_is_explicit():
     db = TestingSessionLocal()
     try:
         db.add(
-            models.MarketPrice(
-                source="yahoo",
-                symbol="USDBRL=X",
+            models.LMEPrice(
+                symbol="^USDBRL",
+                name="U.S. Dollar/Brazilian Real",
+                market="FX",
                 price=5.0,
-                currency="BRL",
-                as_of=datetime.fromisoformat("2025-01-09T00:00:00"),
-                fx=True,
+                price_type="close",
+                ts_price=datetime.fromisoformat("2025-01-09T00:00:00+00:00"),
+                source="barchart_excel_usdbrl",
             )
         )
         db.commit()
@@ -350,7 +353,11 @@ def test_preview_multi_currency_converts_when_fx_is_explicit():
             "as_of": "2025-01-10",
             "reporting": {
                 "reporting_currency": "BRL",
-                "fx": {"mode": "explicit", "fx_symbol": "USDBRL=X", "fx_source": "yahoo"},
+                "fx": {
+                    "mode": "explicit",
+                    "fx_symbol": "^USDBRL",
+                    "fx_source": "barchart_excel_usdbrl",
+                },
             },
             "assumptions": {"forward_price_assumption": 120.0},
         },

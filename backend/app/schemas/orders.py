@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, validator
 
-from app.models.domain import OrderStatus, PricingType
+from app.models.domain import OrderStatus, PriceType
 
 
 class SupplierBase(BaseModel):
@@ -166,9 +166,9 @@ class PurchaseOrderBase(BaseModel):
     total_quantity_mt: float = Field(..., gt=0)
     unit: Optional[str] = Field("MT", max_length=16)
     unit_price: Optional[float] = Field(None, ge=0)
-    pricing_type: PricingType
+    pricing_type: PriceType
     pricing_period: Optional[str] = Field(None, max_length=32)
-    lme_premium: float = Field(..., ge=0)
+    lme_premium: float = Field(0.0, ge=0)
     premium: Optional[float] = Field(None, ge=0)
     reference_price: Optional[str] = Field(None, max_length=64)
     fixing_deadline: Optional[date] = None
@@ -191,7 +191,7 @@ class PurchaseOrderUpdate(BaseModel):
     total_quantity_mt: Optional[float] = None
     unit: Optional[str] = None
     unit_price: Optional[float] = None
-    pricing_type: Optional[PricingType] = None
+    pricing_type: Optional[PriceType] = None
     pricing_period: Optional[str] = None
     lme_premium: Optional[float] = None
     premium: Optional[float] = None
@@ -221,9 +221,9 @@ class SalesOrderBase(BaseModel):
     total_quantity_mt: float = Field(..., gt=0)
     unit: Optional[str] = Field("MT", max_length=16)
     unit_price: Optional[float] = Field(None, ge=0)
-    pricing_type: PricingType
+    pricing_type: PriceType
     pricing_period: Optional[str] = Field(None, max_length=32)
-    lme_premium: float = Field(..., ge=0)
+    lme_premium: float = Field(0.0, ge=0)
     premium: Optional[float] = Field(None, ge=0)
     reference_price: Optional[str] = Field(None, max_length=64)
     fixing_deadline: Optional[date] = None
@@ -252,7 +252,7 @@ class SalesOrderUpdate(BaseModel):
     total_quantity_mt: Optional[float] = None
     unit: Optional[str] = None
     unit_price: Optional[float] = None
-    pricing_type: Optional[PricingType] = None
+    pricing_type: Optional[PriceType] = None
     pricing_period: Optional[str] = None
     lme_premium: Optional[float] = None
     premium: Optional[float] = None

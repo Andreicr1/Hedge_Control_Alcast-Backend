@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from app import models
 
-AL_CASH_SETTLEMENT_SYMBOL = "ALUMINUM_CASH_SETTLEMENT"  # Westmetall daily official Cash-Settlement
+from app.services.lme_price_service import lme_price_by_day_prefer_types
+
+AL_CASH_SETTLEMENT_SYMBOL = "P3Y00"  # LME Aluminium Cash Settlement (single source: LMEPrice)
 AL_CASH_BID_SYMBOL = "ALUMINUM_CASH_BID"  # LME public (intraday) proxy only
 AL_CASH_ASK_SYMBOL = "ALUMINUM_CASH_ASK"  # LME public (intraday) proxy only
 AL_CASH_MID_SYMBOL = "ALUMINUM_CASH_MID"  # LME public (intraday) proxy only
@@ -81,9 +83,10 @@ def _latest_cash_publish_date(db: Session) -> Optional[date]:
     settlement series only (no proxy fallbacks, no overrides).
     """
     q = (
-        db.query(models.MarketPrice.as_of)
-        .filter(models.MarketPrice.symbol == AL_CASH_SETTLEMENT_SYMBOL)
-        .order_by(models.MarketPrice.as_of.desc(), models.MarketPrice.created_at.desc())
+        db.query(models.LMEPrice.ts_price)
+        .filter(models.LMEPrice.symbol == AL_CASH_SETTLEMENT_SYMBOL)
+        .filter(models.LMEPrice.price_type.in_(["close", "official"]))
+        .order_by(models.LMEPrice.ts_price.desc(), models.LMEPrice.ts_ingest.desc())
     )
     row = q.first()
     return row[0].date() if row and row[0] else None
@@ -99,31 +102,16 @@ def _cash_price_by_day(
 
     Institutional rule (T5 MVP): do NOT fall back to intraday proxies.
     """
-    start_dt = datetime.combine(start, datetime.min.time())
-    end_dt = datetime.combine(end + timedelta(days=1), datetime.min.time())
-    rows = (
-        db.query(models.MarketPrice)
-        .filter(models.MarketPrice.symbol == AL_CASH_SETTLEMENT_SYMBOL)
-        .filter(models.MarketPrice.as_of >= start_dt)
-        .filter(models.MarketPrice.as_of < end_dt)
-        .order_by(models.MarketPrice.as_of.asc(), models.MarketPrice.created_at.asc())
-        .all()
+    # Institutional rule (T5 MVP): do NOT fall back to intraday proxies.
+    # Only accept authoritative daily settlement types.
+    series = lme_price_by_day_prefer_types(
+        db,
+        symbol=AL_CASH_SETTLEMENT_SYMBOL,
+        start=start,
+        end=end,
+        price_types=["close", "official"],
     )
-
-    # Keep last obs per day for settlement series.
-    latest: dict[date, models.MarketPrice] = {}
-    for r in rows:
-        d = r.as_of.date()
-        latest[d] = r
-
-    out: dict[date, float] = {}
-    day = start
-    while day <= end:
-        settlement = latest.get(day)
-        if settlement is not None:
-            out[day] = float(settlement.price)
-        day = day + timedelta(days=1)
-    return out
+    return {d: float(p.price) for d, p in series.items()}
 
 
 def compute_realized_avg_cash(
