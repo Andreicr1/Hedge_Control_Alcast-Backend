@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    analytics,
     auth,
     cashflow,
     contracts,
@@ -50,6 +51,7 @@ api_router.include_router(inbox.router)
 api_router.include_router(timeline.router)
 api_router.include_router(exports.router)
 api_router.include_router(workflows.router)
+api_router.include_router(analytics.router)
 api_router.include_router(cashflow.router)
 api_router.include_router(purchase_orders.router)
 api_router.include_router(sales_orders.router)
