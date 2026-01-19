@@ -49,3 +49,8 @@ node_modules/
 # VSIX artifacts
 *.vsix
 
+# Docs (ignore all markdown except README)
+*.md
+!README.md
+!**/README.md
+
