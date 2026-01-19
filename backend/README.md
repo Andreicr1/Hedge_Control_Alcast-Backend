@@ -46,6 +46,30 @@ If you prefer, you can use the helper scripts:
 
 ## Quality Gates
 
+## Demo seed: LME prices (dev only)
+
+If the Dashboard shows "Sem dados" for LME widgets, your database likely has no rows in `lme_prices`.
+
+To generate a small demo dataset locally (so charts/live cards render), run from `backend/`:
+
+- `python scripts/seed_lme_prices.py --days 120`
+
+This script uses the configured `DATABASE_URL` (from `.env`). It is intended for dev only.
+
+## LME ingest: Excel -> API (automation-friendly)
+
+For real market data (not synthetic seed), use the operational script that reads your local `market.xlsx`
+and POSTs JSON into the backend ingestion endpoint:
+
+- `python scripts/ingest_lme_from_excel.py --xlsx "C:\\path\\to\\market.xlsx" --api-base-url "https://<your-render>/api" --token "<INGEST_TOKEN>"`
+
+Notes:
+
+- If your Excel export has a title row above headers, try `--header-row 2`.
+- If you don't have a reliable intraday Quotes sheet, add `--also-live-from-history`.
+- For scheduled runs on Windows Task Scheduler, copy `scripts/run_ingest_lme.ps1.example` to a local-only
+  `scripts/run_ingest_lme.ps1` and schedule it (do not commit secrets/tokens).
+
 ### Pre-commit Hook (recommended)
 
 Install the pre-commit hook to catch lint issues before commit:

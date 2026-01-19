@@ -44,6 +44,27 @@ def ingest_lme_price(payload: LMEPriceIngest, db: Session = Depends(get_db)) -> 
     if payload.price_type not in spec["price_types"]:
         raise HTTPException(status_code=400, detail="price_type mismatch for symbol")
 
+    existing = (
+        db.query(LMEPrice)
+        .filter(LMEPrice.symbol == payload.symbol)
+        .filter(LMEPrice.price_type == payload.price_type)
+        .filter(LMEPrice.ts_price == payload.ts_price)
+        .order_by(LMEPrice.ts_ingest.desc())
+        .first()
+    )
+
+    # Idempotency for automation: if the same point already exists, return it.
+    if existing and float(existing.price) == float(payload.price) and existing.source == payload.source:
+        return {
+            "id": existing.id,
+            "symbol": existing.symbol,
+            "price": float(existing.price),
+            "price_type": existing.price_type,
+            "ts_price": existing.ts_price.isoformat(),
+            "ts_ingest": existing.ts_ingest.isoformat() if existing.ts_ingest else None,
+            "source": existing.source,
+        }
+
     record = LMEPrice(
         symbol=payload.symbol,
         name=payload.name,
@@ -120,6 +141,9 @@ def get_lme_aluminum_history_cash(db: Session = Depends(get_db)) -> List[Dict]:
     # Prefer Cash close (P3Y00 close) if available.
     # Otherwise, fall back to Q7Y00 official closes (CashHistorical sheets used for D-1 MTM).
     data = _history_daily(db, "P3Y00", "close")
+    if data:
+        return data
+    data = _history_daily(db, "P3Y00", "live")
     if data:
         return data
     return _history_daily(db, "Q7Y00", "official")

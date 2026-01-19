@@ -1,0 +1,52 @@
+param(
+  [Parameter(Mandatory = $true)]
+  [string]$XlsxPath,
+
+  [Parameter(Mandatory = $true)]
+  [string]$ApiBaseUrl,
+
+  [Parameter(Mandatory = $true)]
+  [string]$Token,
+
+  [int]$HeaderRow = 1,
+
+  [switch]$NoLive,
+  [switch]$NoHistory,
+  [switch]$AlsoLiveFromHistory
+)
+
+$ErrorActionPreference = 'Stop'
+
+# Prefer the pinned venv if present.
+$pythonCandidates = @(
+  (Join-Path $PSScriptRoot '..\.venv311\Scripts\python.exe'),
+  (Join-Path $PSScriptRoot '..\.venv\Scripts\python.exe'),
+  'python'
+)
+
+$python = $null
+foreach ($c in $pythonCandidates) {
+  if ($c -eq 'python') { $python = $c; break }
+  if (Test-Path $c) { $python = $c; break }
+}
+
+if (-not $python) {
+  throw 'Python interpreter not found.'
+}
+
+$scriptPath = Join-Path $PSScriptRoot 'ingest_lme_from_excel.py'
+
+$argsList = @(
+  $scriptPath,
+  '--xlsx', $XlsxPath,
+  '--api-base-url', $ApiBaseUrl,
+  '--token', $Token,
+  '--header-row', $HeaderRow
+)
+
+if ($NoLive) { $argsList += '--no-live' }
+if ($NoHistory) { $argsList += '--no-history' }
+if ($AlsoLiveFromHistory) { $argsList += '--also-live-from-history' }
+
+Write-Host "Running: $python $($argsList -join ' ')"
+& $python @argsList

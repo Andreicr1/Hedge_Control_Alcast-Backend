@@ -28,9 +28,14 @@ Supported Excel formats:
 Example usage (PowerShell):
   $env:API_BASE_URL = "https://<your-render-app>.onrender.com/api"
   $env:INGEST_TOKEN = "<same token configured on backend>"
-  python .\scripts\ingest_lme_from_excel.py --xlsx "C:\lme_market_api\data\market.xlsx"
+    python .\\scripts\\ingest_lme_from_excel.py --xlsx "C:\\lme_market_api\\data\\market.xlsx"
 
 If your sheet has different headers, pass --sheet and/or --header-row.
+
+Tip:
+- If you don't have a reliable intraday Quotes sheet, you can still keep the Live card updated by
+    deriving a "live" point from the newest row of the historical sheets:
+    `--also-live-from-history`.
 """
 
 from __future__ import annotations
@@ -38,7 +43,7 @@ from __future__ import annotations
 import argparse
 import os
 from datetime import date, datetime, time, timezone
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 def _require_pkg(name: str) -> None:
@@ -112,6 +117,18 @@ def _to_utc_iso(ts_val: Any) -> str:
             pass
 
     raise ValueError(f"unrecognized timestamp format: {s}")
+
+
+def _parse_utc_iso(ts_iso: str) -> datetime:
+    s = str(ts_iso).strip()
+    if not s:
+        raise ValueError("empty timestamp")
+    if s.endswith("Z"):
+        s = s.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _load_rows(
@@ -368,6 +385,14 @@ def main() -> int:
         help="Skip historical ingest (cashhistorical / 3mhistorical sheets)",
     )
     p.add_argument(
+        "--also-live-from-history",
+        action="store_true",
+        help=(
+            "Also ingest a 'live' point derived from the newest row in CashHistorical (P3Y00) "
+            "and 3MHistorical (P4Y00). Useful when you don't have an intraday Quotes sheet."
+        ),
+    )
+    p.add_argument(
         "--api-base-url",
         default=os.getenv("API_BASE_URL", "").rstrip("/"),
         help="Base API URL, e.g. https://.../api (or set API_BASE_URL)",
@@ -389,30 +414,56 @@ def main() -> int:
     if not args.no_live:
         rows.extend(_load_rows(args.xlsx, args.sheet, args.header_row))
     if not args.no_history:
-        rows.extend(
-            _load_historical_sheet(
-                args.xlsx,
-                args.cash_historical_sheet,
-                args.header_row,
-                source="barchart_excel_cashhistorical",
-            )
+        cash_hist = _load_historical_sheet(
+            args.xlsx,
+            args.cash_historical_sheet,
+            args.header_row,
+            source="barchart_excel_cashhistorical",
         )
-        rows.extend(
-            _load_historical_sheet(
-                args.xlsx,
-                args.three_month_historical_sheet,
-                args.header_row,
-                source="barchart_excel_3mhistorical",
-            )
+        three_m_hist = _load_historical_sheet(
+            args.xlsx,
+            args.three_month_historical_sheet,
+            args.header_row,
+            source="barchart_excel_3mhistorical",
         )
-        rows.extend(
-            _load_historical_sheet(
-                args.xlsx,
-                args.usdbrl_historical_sheet,
-                args.header_row,
-                source="barchart_excel_usdbrl",
-            )
+        usdbrl_hist = _load_historical_sheet(
+            args.xlsx,
+            args.usdbrl_historical_sheet,
+            args.header_row,
+            source="barchart_excel_usdbrl",
         )
+
+        rows.extend(cash_hist)
+        rows.extend(three_m_hist)
+        rows.extend(usdbrl_hist)
+
+        if args.also_live_from_history:
+            def _latest(symbol: str, source: str, candidates: List[Dict[str, Any]]) -> Tuple[datetime, Dict[str, Any]] | None:
+                best: Tuple[datetime, Dict[str, Any]] | None = None
+                for r in candidates:
+                    if r.get("symbol") != symbol:
+                        continue
+                    if r.get("source") != source:
+                        continue
+                    if r.get("price_type") not in {"close", "official"}:
+                        continue
+                    try:
+                        ts = _parse_utc_iso(str(r.get("ts_price") or ""))
+                    except Exception:
+                        continue
+                    if best is None or ts > best[0]:
+                        best = (ts, r)
+                return best
+
+            latest_cash = _latest("P3Y00", "barchart_excel_cashhistorical", cash_hist)
+            if latest_cash:
+                _, r = latest_cash
+                rows.append({**r, "price_type": "live"})
+
+            latest_3m = _latest("P4Y00", "barchart_excel_3mhistorical", three_m_hist)
+            if latest_3m:
+                _, r = latest_3m
+                rows.append({**r, "price_type": "live"})
 
     if not rows:
         raise SystemExit(
