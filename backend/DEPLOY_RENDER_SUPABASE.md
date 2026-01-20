@@ -22,6 +22,27 @@ Notes:
 - Use the exact connection string shown by Supabase (including user/host). If you use the Pooler host (`*.pooler.supabase.com`), keep the username format exactly as provided.
 - Do not use SQLite for Supabase/Render deploys.
 
+### If you see "max clients reached" (Supabase pooler)
+
+If Render (or local dev) fails to boot with an error like:
+
+- `FATAL: MaxClientsInSessionMode: max clients reached`
+
+it usually means you are using the **Pooler in Session mode** and the app is opening too many connections.
+
+Recommended fixes (pick one):
+
+1) Prefer Supabase **Transaction pooler** connection string (best for web services)
+	 - In Supabase → Database → Connection string, choose the pooler **Transaction** mode.
+	 - Update `DATABASE_URL` in Render to that value.
+
+2) Reduce SQLAlchemy pooling on the app side
+	 - Set in Render env vars:
+		 - `DB_POOL_SIZE=1`
+		 - `DB_MAX_OVERFLOW=0`
+	 - Optionally disable pooling entirely (useful with transaction poolers):
+		 - `DB_USE_NULL_POOL=true`
+
 Example:
 
 - `postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require`

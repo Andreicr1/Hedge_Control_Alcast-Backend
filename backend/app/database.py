@@ -2,6 +2,7 @@ import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
@@ -10,7 +11,42 @@ connect_args = {}
 if str(settings.database_url).startswith("postgresql"):
     connect_args = {"connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "10"))}
 
-engine = create_engine(settings.database_url, future=True, connect_args=connect_args)
+db_url = str(settings.database_url)
+is_postgres = db_url.startswith("postgresql")
+
+def _env_bool(key: str, default: str = "false") -> bool:
+    v = os.getenv(key, default)
+    return str(v).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+engine_kwargs: dict = {"future": True, "connect_args": connect_args}
+
+if is_postgres:
+    # Keep connections healthy across transient pooler/network glitches.
+    engine_kwargs["pool_pre_ping"] = True
+
+    # Defaults tuned for Supabase pooler session mode, where max clients are small.
+    is_supabase_pooler = "pooler.supabase.com" in db_url
+    default_pool_size = "1" if is_supabase_pooler else "5"
+    default_max_overflow = "0" if is_supabase_pooler else "10"
+
+    pool_size = int(os.getenv("DB_POOL_SIZE", default_pool_size))
+    max_overflow = int(os.getenv("DB_MAX_OVERFLOW", default_max_overflow))
+    pool_timeout = int(os.getenv("DB_POOL_TIMEOUT_SECONDS", "30"))
+    pool_recycle = int(os.getenv("DB_POOL_RECYCLE_SECONDS", "1800"))
+
+    # For transaction poolers / serverless-style environments, disable pooling.
+    if _env_bool("DB_USE_NULL_POOL", "false"):
+        engine_kwargs["poolclass"] = NullPool
+    else:
+        engine_kwargs.update(
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout,
+            pool_recycle=pool_recycle,
+        )
+
+engine = create_engine(db_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 Base = declarative_base()
 

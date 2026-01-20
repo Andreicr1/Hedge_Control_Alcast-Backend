@@ -27,6 +27,10 @@ services:
         value: "false"
       - key: DB_CONNECT_TIMEOUT_SECONDS
         value: "10"
+      - key: DB_POOL_SIZE
+        value: "1"
+      - key: DB_MAX_OVERFLOW
+        value: "0"
       - key: SCHEDULER_ENABLED
         value: "false"
       - key: RUN_MIGRATIONS_ON_START
