@@ -28,9 +28,25 @@ class ExposureBase(BaseModel):
 
 
 class ExposureRead(ExposureBase):
+    class HedgeCoverageRead(BaseModel):
+        hedge_id: int
+        quantity_mt: float
+        counterparty_name: Optional[str] = None
+        instrument: Optional[str] = None
+        period: Optional[str] = None
+
+        class Config:
+            orm_mode = True
+
     id: int
     created_at: datetime
     tasks: List[HedgeTaskRead] = []
+
+    # Decision/UX fields
+    pricing_reference: Optional[str] = None
+    hedged_quantity_mt: Optional[float] = None
+    unhedged_quantity_mt: Optional[float] = None
+    hedges: List[HedgeCoverageRead] = []
 
     class Config:
         orm_mode = True
