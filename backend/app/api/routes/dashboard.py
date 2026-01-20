@@ -7,11 +7,12 @@ frontend types in `DashboardSummary`.
 
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session, joinedload
 
 from app import models
@@ -67,13 +68,33 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
     """
 
     today = date.today()
-    contracts = (
-        db.query(models.Contract)
-        .filter(models.Contract.status == models.ContractStatus.active.value)
-        .all()
-    )
+    max_contracts = int(os.getenv("DASHBOARD_MTM_MAX_CONTRACTS", "50"))
 
-    def _sum_for_day(day: date) -> float:
+    def _snapshot_portfolio_total(day: date) -> tuple[float, int]:
+        """Return (total_mtm_usd, rows_count) from snapshot table for the given day."""
+        q = (
+            db.query(models.MtmContractSnapshot)
+            .join(
+                models.Contract,
+                models.Contract.contract_id == models.MtmContractSnapshot.contract_id,
+            )
+            .filter(models.MtmContractSnapshot.as_of_date == day)
+            .filter(models.MtmContractSnapshot.currency == "USD")
+            .filter(models.Contract.status == models.ContractStatus.active.value)
+        )
+
+        total = float(q.with_entities(func.coalesce(func.sum(models.MtmContractSnapshot.mtm_usd), 0.0)).scalar() or 0.0)
+        count = int(q.with_entities(func.count(models.MtmContractSnapshot.id)).scalar() or 0)
+        return total, count
+
+    def _fallback_sum_for_day(day: date) -> float:
+        contracts = (
+            db.query(models.Contract)
+            .filter(models.Contract.status == models.ContractStatus.active.value)
+            .order_by(models.Contract.contract_id.asc())
+            .limit(max_contracts)
+            .all()
+        )
         total = 0.0
         for c in contracts:
             res = compute_mtm_for_contract_avg(db, c, as_of_date=day)
@@ -82,34 +103,37 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
             total += float(res.mtm_usd)
         return float(total)
 
-    current = _sum_for_day(today)
-    prev_day = _sum_for_day(today.replace(day=today.day) if False else (today))
-    # Compute a true previous day value when possible.
+    def _portfolio_total_for_day(day: date) -> float:
+        try:
+            total, count = _snapshot_portfolio_total(day)
+            if count > 0:
+                return float(total)
+        except Exception:
+            pass
+        return _fallback_sum_for_day(day)
+
+    current = _portfolio_total_for_day(today)
     try:
-        prev_day = _sum_for_day(today.fromordinal(today.toordinal() - 1))
+        prev_day_total = _portfolio_total_for_day(today.fromordinal(today.toordinal() - 1))
     except Exception:
-        prev_day = current
+        prev_day_total = current
 
-    change = float(current - prev_day)
-    change_percent = _pct_change(current, prev_day)
+    change = float(current - prev_day_total)
+    change_percent = _pct_change(current, prev_day_total)
 
-    # Lightweight indicators; computed from the same MTM logic.
-    weekly = current
-    monthly = current
     try:
-        weekly_prev = _sum_for_day(today.fromordinal(today.toordinal() - 7))
+        weekly_prev = _portfolio_total_for_day(today.fromordinal(today.toordinal() - 7))
         weekly = float(current - weekly_prev)
     except Exception:
         weekly = 0.0
+
     try:
-        monthly_prev = _sum_for_day(today.fromordinal(today.toordinal() - 30))
+        monthly_prev = _portfolio_total_for_day(today.fromordinal(today.toordinal() - 30))
         monthly = float(current - monthly_prev)
     except Exception:
         monthly = 0.0
 
-    period_label = (
-        f"Última atualização: {_iso(datetime.utcnow())}" if contracts else "Sem contratos ativos"
-    )
+    period_label = f"Última atualização: {_iso(datetime.utcnow())}"
 
     return {
         "value": current,
@@ -319,7 +343,7 @@ def _build_dashboard_timeline(
 
 
 @router.get("/summary")
-async def get_dashboard_summary(
+def get_dashboard_summary(
     current_user: models.User = Depends(
         require_roles(RoleName.admin, RoleName.financeiro, RoleName.auditoria)
     ),
@@ -341,7 +365,7 @@ async def get_dashboard_summary(
 
 
 @router.get("/mtm")
-async def get_mtm_data(
+def get_mtm_data(
     current_user: models.User = Depends(
         require_roles(RoleName.admin, RoleName.financeiro, RoleName.auditoria)
     ),
@@ -352,7 +376,7 @@ async def get_mtm_data(
 
 
 @router.get("/settlements")
-async def get_settlements_data(
+def get_settlements_data(
     current_user: models.User = Depends(
         require_roles(RoleName.admin, RoleName.financeiro, RoleName.auditoria)
     ),
@@ -363,7 +387,7 @@ async def get_settlements_data(
 
 
 @router.get("/rfqs")
-async def get_rfqs(
+def get_rfqs(
     current_user: models.User = Depends(
         require_roles(RoleName.admin, RoleName.financeiro, RoleName.auditoria)
     ),
@@ -374,7 +398,7 @@ async def get_rfqs(
 
 
 @router.get("/contracts")
-async def get_contracts(
+def get_contracts(
     current_user: models.User = Depends(
         require_roles(RoleName.admin, RoleName.financeiro, RoleName.auditoria)
     ),
@@ -385,7 +409,7 @@ async def get_contracts(
 
 
 @router.get("/timeline")
-async def get_timeline(
+def get_timeline(
     current_user: models.User = Depends(
         require_roles(
             RoleName.admin,
