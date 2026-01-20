@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Numeric, String, func
+from sqlalchemy import DateTime, Numeric, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -12,10 +12,9 @@ from app.database import Base
 class LMEPrice(Base):
     __tablename__ = "lme_prices"
 
-    # Keep as string for cross-db compatibility (SQLite tests/dev), while still storing UUID values.
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    # Use a UUID type so Postgres stores/compares correctly, while SQLAlchemy still
+    # provides cross-db portability for SQLite-based tests.
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     symbol: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)

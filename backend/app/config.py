@@ -1,16 +1,25 @@
 import json
 import os
 import re
+import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseSettings, Field, validator
+
+
+# Pydantic v1 does not fully support Python 3.14+. Our project is pinned to py311.
+if sys.version_info >= (3, 13):
+    raise RuntimeError(
+        "Unsupported Python version for this backend environment. "
+        "Use the project's Python 3.11 environment (e.g. backend/.venv311)."
+    )
 
 
 class Settings(BaseSettings):
     app_name: str = Field(default=os.getenv("PROJECT_NAME", "Hedge Control API"))
     environment: str = Field(default=os.getenv("ENVIRONMENT", "dev"), env="ENVIRONMENT")
-    build_version: str | None = Field(default=os.getenv("BUILD_VERSION"), env="BUILD_VERSION")
+    build_version: Optional[str] = Field(default=os.getenv("BUILD_VERSION"), env="BUILD_VERSION")
     database_url: str = Field(
         default=os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/alcast_db")
     )
@@ -24,13 +33,14 @@ class Settings(BaseSettings):
     algorithm: str = Field(default=os.getenv("ALGORITHM", "HS256"))
     cors_origins: List[str] = Field(default_factory=list, env="CORS_ORIGINS")
     storage_dir: str = Field(default=os.getenv("STORAGE_DIR", "storage"))
-    whatsapp_webhook_secret: str | None = Field(default=os.getenv("WHATSAPP_WEBHOOK_SECRET"))
-    webhook_secret: str | None = Field(default=os.getenv("WEBHOOK_SECRET"))
+    whatsapp_webhook_secret: Optional[str] = Field(default=os.getenv("WHATSAPP_WEBHOOK_SECRET"))
+    webhook_secret: Optional[str] = Field(default=os.getenv("WEBHOOK_SECRET"))
     scheduler_enabled: bool = Field(default=os.getenv("SCHEDULER_ENABLED", "true"))
+    run_migrations_on_start: bool = Field(default=False, env="RUN_MIGRATIONS_ON_START")
 
     # Private ingestion token for operational scripts (e.g., Excel->API posting).
     # If not set, ingestion endpoints should reject all requests.
-    ingest_token: str | None = Field(default=os.getenv("INGEST_TOKEN"), env="INGEST_TOKEN")
+    ingest_token: Optional[str] = Field(default=os.getenv("INGEST_TOKEN"), env="INGEST_TOKEN")
 
     class Config:
         env_file = ".env"
@@ -194,6 +204,22 @@ class Settings(BaseSettings):
             rel = path_part[2:] if path_part.startswith("./") else path_part[2:]
             abs_path = (backend_root / rel).resolve().as_posix()
             return f"{s[: i + len(marker)]}{abs_path}"
+
+        return s
+
+    @validator("database_url")
+    def validate_database_url_for_environment(cls, v: str, values):
+        env = str(values.get("environment", "dev") or "dev").strip().lower()
+        raw = os.getenv("DATABASE_URL")
+        s = str(v or "").strip()
+
+        if env in {"prod", "production"}:
+            if not raw:
+                raise ValueError("DATABASE_URL must be explicitly set in production")
+            if s.startswith("sqlite"):
+                raise ValueError("SQLite DATABASE_URL is not allowed in production")
+            if "localhost" in s or "127.0.0.1" in s:
+                raise ValueError("DATABASE_URL must not point to localhost in production")
 
         return s
 

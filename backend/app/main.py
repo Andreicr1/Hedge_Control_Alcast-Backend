@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +58,56 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=api_prefix)
+
+
+def _run_migrations_if_configured() -> None:
+    if not bool(getattr(settings, "run_migrations_on_start", False)):
+        return
+
+    # Avoid running migrations during tests.
+    if (settings.environment or "").lower() == "test":
+        return
+
+    # Import lazily to keep import graph light for non-migration startups.
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    backend_root = Path(__file__).resolve().parents[1]
+    cfg_path = backend_root / "alembic.ini"
+    alembic_cfg = Config(str(cfg_path))
+
+    engine = create_engine(settings.database_url, future=True)
+    with engine.connect() as connection:
+        dialect = str(connection.dialect.name or "").lower()
+
+        # Best-effort: avoid concurrent migrations across multiple instances.
+        lock_acquired = True
+        if dialect == "postgresql":
+            try:
+                lock_acquired = bool(
+                    connection.execute(text("select pg_try_advisory_lock(:k)"), {"k": 91238411}).scalar()
+                )
+            except Exception as e:
+                logger.warning("migrations_lock_failed", extra={"error": str(e)})
+                lock_acquired = True
+
+        if not lock_acquired:
+            logger.info("migrations_skipped_lock_not_acquired")
+            return
+
+        try:
+            # Reuse this connection inside Alembic env.py (config.attributes['connection']).
+            alembic_cfg.attributes["connection"] = connection
+            command.upgrade(alembic_cfg, "head")
+            logger.info("migrations_applied")
+        finally:
+            if dialect == "postgresql":
+                try:
+                    connection.execute(text("select pg_advisory_unlock(:k)"), {"k": 91238411})
+                    connection.commit()
+                except Exception:
+                    pass
 
 
 def _seed_dev_users() -> None:

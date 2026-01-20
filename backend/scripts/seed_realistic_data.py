@@ -21,7 +21,6 @@ from app import models  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.services.audit import audit_event  # noqa: E402
 from app.services.deal_engine import link_hedge_to_deal  # noqa: E402
-from app.services.document_numbering import next_monthly_number  # noqa: E402
 from app.services.exposure_engine import (  # noqa: E402
     close_open_exposures_for_source,
     reconcile_purchase_order_exposures,
@@ -62,11 +61,42 @@ def _env_guard(*, allow_production: bool) -> None:
         )
 
 
+def _db_guard(*, allow_sqlite: bool, require_supabase: bool) -> None:
+    from app.config import settings
+
+    db_url = str(settings.database_url or "").strip()
+    low = db_url.lower()
+
+    if low.startswith("sqlite") and not allow_sqlite:
+        raise SystemExit(
+            "Refusing to seed a SQLite database. Configure DATABASE_URL to your Supabase Postgres URL "
+            "(recommended), or re-run with --allow-sqlite for local-only seeding."
+        )
+
+    if require_supabase and (not low.startswith("sqlite")) and ("supabase" not in low):
+        raise SystemExit(
+            "Refusing to seed because DATABASE_URL does not look like a Supabase host. "
+            "Set DATABASE_URL to your Supabase connection string, or re-run with --no-require-supabase."
+        )
+
+
 def _today_utc() -> date:
     return datetime.now(timezone.utc).date()
 
 
-def _weighted_choice(rng: random.Random, items: list[tuple[models.PriceType, float]]) -> models.PriceType:
+def _rng_uuid4(rng: random.Random) -> uuid.UUID:
+    """Deterministic UUID4 derived from RNG.
+
+    Project policy emphasizes reproducibility: the same --seed should yield the same
+    dataset after a reset. Using uuid4() would break that.
+    """
+
+    return uuid.UUID(int=rng.getrandbits(128), version=4)
+
+
+def _weighted_choice(
+    rng: random.Random, items: list[tuple[models.PriceType, float]]
+) -> models.PriceType:
     total = sum(w for _, w in items)
     x = rng.random() * total
     upto = 0.0
@@ -128,7 +158,9 @@ def _ensure_roles_and_seed_users(db: Session, *, password: str) -> dict[str, int
         db.flush()
         return user
 
-    domain = str(os.getenv("SEED_EMAIL_DOMAIN", "alcast.local") or "alcast.local").strip().lstrip("@")
+    domain = (
+        str(os.getenv("SEED_EMAIL_DOMAIN", "alcast.local") or "alcast.local").strip().lstrip("@")
+    )
 
     roles = {
         "admin": ensure_role(models.RoleName.admin),
@@ -199,7 +231,10 @@ def _ensure_lme_prices(db: Session, *, days: int) -> None:
     rows = (
         db.query(LMEPrice.symbol, LMEPrice.price_type, LMEPrice.ts_price)
         .filter(LMEPrice.symbol.in_(sorted(symbol_specs.keys())))
-        .filter(LMEPrice.ts_price >= datetime.combine(start_day, datetime.min.time(), tzinfo=timezone.utc))
+        .filter(
+            LMEPrice.ts_price
+            >= datetime.combine(start_day, datetime.min.time(), tzinfo=timezone.utc)
+        )
         .all()
     )
     existing: set[tuple[str, str, date]] = set()
@@ -393,19 +428,19 @@ def _reset_company(db: Session, company: CompanySpec) -> None:
                 )
             )
         ).delete(synchronize_session=False)
-        db.query(models.TreasuryDecision).filter(models.TreasuryDecision.exposure_id.in_(exposure_ids)).delete(
-            synchronize_session=False
-        )
+        db.query(models.TreasuryDecision).filter(
+            models.TreasuryDecision.exposure_id.in_(exposure_ids)
+        ).delete(synchronize_session=False)
 
         db.query(models.HedgeTask).filter(models.HedgeTask.exposure_id.in_(exposure_ids)).delete(
             synchronize_session=False
         )
-        db.query(models.HedgeExposure).filter(models.HedgeExposure.exposure_id.in_(exposure_ids)).delete(
-            synchronize_session=False
-        )
-        db.query(models.ContractExposure).filter(models.ContractExposure.exposure_id.in_(exposure_ids)).delete(
-            synchronize_session=False
-        )
+        db.query(models.HedgeExposure).filter(
+            models.HedgeExposure.exposure_id.in_(exposure_ids)
+        ).delete(synchronize_session=False)
+        db.query(models.ContractExposure).filter(
+            models.ContractExposure.exposure_id.in_(exposure_ids)
+        ).delete(synchronize_session=False)
         db.query(models.Exposure).filter(models.Exposure.id.in_(exposure_ids)).delete(
             synchronize_session=False
         )
@@ -414,7 +449,9 @@ def _reset_company(db: Session, company: CompanySpec) -> None:
         db.query(models.HedgeExposure).filter(models.HedgeExposure.hedge_id.in_(hedge_ids)).delete(
             synchronize_session=False
         )
-        db.query(models.Hedge).filter(models.Hedge.id.in_(hedge_ids)).delete(synchronize_session=False)
+        db.query(models.Hedge).filter(models.Hedge.id.in_(hedge_ids)).delete(
+            synchronize_session=False
+        )
 
     if rfq_ids:
         db.query(models.RfqSendAttempt).filter(models.RfqSendAttempt.rfq_id.in_(rfq_ids)).delete(
@@ -432,17 +469,21 @@ def _reset_company(db: Session, company: CompanySpec) -> None:
         db.query(models.Rfq).filter(models.Rfq.id.in_(rfq_ids)).delete(synchronize_session=False)
 
     if contract_ids:
-        db.query(models.ContractExposure).filter(models.ContractExposure.contract_id.in_(contract_ids)).delete(
-            synchronize_session=False
-        )
+        db.query(models.ContractExposure).filter(
+            models.ContractExposure.contract_id.in_(contract_ids)
+        ).delete(synchronize_session=False)
         db.query(models.Contract).filter(models.Contract.contract_id.in_(contract_ids)).delete(
             synchronize_session=False
         )
 
     if so_ids:
-        db.query(models.SalesOrder).filter(models.SalesOrder.id.in_(so_ids)).delete(synchronize_session=False)
+        db.query(models.SalesOrder).filter(models.SalesOrder.id.in_(so_ids)).delete(
+            synchronize_session=False
+        )
     if po_ids:
-        db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id.in_(po_ids)).delete(synchronize_session=False)
+        db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id.in_(po_ids)).delete(
+            synchronize_session=False
+        )
 
     if deal_ids:
         db.query(models.DealLink).filter(models.DealLink.deal_id.in_(deal_ids)).delete(
@@ -461,9 +502,9 @@ def _reset_company(db: Session, company: CompanySpec) -> None:
     )
 
     # Remove seed marker.
-    db.query(models.AuditLog).filter(models.AuditLog.idempotency_key == _seed_marker_key(company)).delete(
-        synchronize_session=False
-    )
+    db.query(models.AuditLog).filter(
+        models.AuditLog.idempotency_key == _seed_marker_key(company)
+    ).delete(synchronize_session=False)
 
     # Remove seed-created timeline events that use deterministic idempotency keys.
     # Without this, re-seeding after reset can hit idempotency conflicts and/or
@@ -478,13 +519,19 @@ def _reset_company(db: Session, company: CompanySpec) -> None:
     db.commit()
 
 
-def _ensure_customer(db: Session, *, company: CompanySpec, code: str, name: str, rng: random.Random) -> models.Customer:
+def _ensure_customer(
+    db: Session, *, company: CompanySpec, code: str, name: str, rng: random.Random
+) -> models.Customer:
     existing = db.query(models.Customer).filter(models.Customer.code == code).first()
     if existing is not None:
         return existing
 
     kyc_status = "approved" if rng.random() > 0.12 else "pending"
-    risk_rating = rng.choice(["low", "medium", "medium", "high"]) if kyc_status == "approved" else rng.choice(["medium", "high"]) 
+    risk_rating = (
+        rng.choice(["low", "medium", "medium", "high"])
+        if kyc_status == "approved"
+        else rng.choice(["medium", "high"])
+    )
     sanctions_flag = bool(rng.random() < 0.03)
 
     c = models.Customer(
@@ -496,9 +543,13 @@ def _ensure_customer(db: Session, *, company: CompanySpec, code: str, name: str,
         tax_id=None,
         tax_id_type=None,
         tax_id_country=None,
-        city=rng.choice(["São Paulo", "Santos", "Hamburg", "Rotterdam", "New Orleans", "Singapore"]),
+        city=rng.choice(
+            ["São Paulo", "Santos", "Hamburg", "Rotterdam", "New Orleans", "Singapore"]
+        ),
         state=rng.choice(["SP", "", "", ""]),
-        country=rng.choice(["Brazil", "Netherlands", "Germany", "United States", "Singapore", "Mexico"]),
+        country=rng.choice(
+            ["Brazil", "Netherlands", "Germany", "United States", "Singapore", "Mexico"]
+        ),
         contact_email=f"trading@{company.slug}.example",
         contact_phone=None,
         base_currency="USD",
@@ -506,7 +557,9 @@ def _ensure_customer(db: Session, *, company: CompanySpec, code: str, name: str,
         risk_rating=risk_rating,
         sanctions_flag=sanctions_flag,
         kyc_status=kyc_status,
-        kyc_notes=None if kyc_status == "approved" else "Documentação em análise; necessário refresh de KYC.",
+        kyc_notes=None
+        if kyc_status == "approved"
+        else "Documentação em análise; necessário refresh de KYC.",
         active=bool(rng.random() > 0.05),
     )
     db.add(c)
@@ -514,13 +567,19 @@ def _ensure_customer(db: Session, *, company: CompanySpec, code: str, name: str,
     return c
 
 
-def _ensure_supplier(db: Session, *, company: CompanySpec, code: str, name: str, rng: random.Random) -> models.Supplier:
+def _ensure_supplier(
+    db: Session, *, company: CompanySpec, code: str, name: str, rng: random.Random
+) -> models.Supplier:
     existing = db.query(models.Supplier).filter(models.Supplier.code == code).first()
     if existing is not None:
         return existing
 
     kyc_status = "approved" if rng.random() > 0.10 else "pending"
-    risk_rating = rng.choice(["low", "medium", "medium", "high"]) if kyc_status == "approved" else rng.choice(["medium", "high"]) 
+    risk_rating = (
+        rng.choice(["low", "medium", "medium", "high"])
+        if kyc_status == "approved"
+        else rng.choice(["medium", "high"])
+    )
     sanctions_flag = bool(rng.random() < 0.02)
 
     s = models.Supplier(
@@ -534,7 +593,9 @@ def _ensure_supplier(db: Session, *, company: CompanySpec, code: str, name: str,
         tax_id_country=None,
         city=rng.choice(["Bahrain", "Al Jubail", "Quebec", "Reykjavík", "Sohar", "Abu Dhabi"]),
         state=None,
-        country=rng.choice(["Bahrain", "Canada", "Iceland", "Oman", "United Arab Emirates", "Australia"]),
+        country=rng.choice(
+            ["Bahrain", "Canada", "Iceland", "Oman", "United Arab Emirates", "Australia"]
+        ),
         contact_email=f"sales@{company.slug}.example",
         contact_phone=None,
         base_currency="USD",
@@ -542,7 +603,9 @@ def _ensure_supplier(db: Session, *, company: CompanySpec, code: str, name: str,
         risk_rating=risk_rating,
         sanctions_flag=sanctions_flag,
         kyc_status=kyc_status,
-        kyc_notes=None if kyc_status == "approved" else "KYC pendente; solicitar documentos adicionais.",
+        kyc_notes=None
+        if kyc_status == "approved"
+        else "KYC pendente; solicitar documentos adicionais.",
         active=bool(rng.random() > 0.06),
     )
     db.add(s)
@@ -579,7 +642,9 @@ def _ensure_counterparty(
         risk_rating=rng.choice(["low", "medium", "medium", "high"]),
         sanctions_flag=False,
         kyc_status=kyc_status,
-        kyc_notes=None if kyc_status == "approved" else "KYC em atualização; revisão anual pendente.",
+        kyc_notes=None
+        if kyc_status == "approved"
+        else "KYC em atualização; revisão anual pendente.",
         internal_notes=f"Seeded for {company.label}",
         active=True,
     )
@@ -588,7 +653,9 @@ def _ensure_counterparty(
     return cp
 
 
-def _ensure_deal(db: Session, *, company: CompanySpec, reference_name: str, created_by: int | None) -> models.Deal:
+def _ensure_deal(
+    db: Session, *, company: CompanySpec, reference_name: str, created_by: int | None
+) -> models.Deal:
     existing = db.query(models.Deal).filter(models.Deal.reference_name == reference_name).first()
     if existing is not None:
         return existing
@@ -633,7 +700,9 @@ def _create_sales_order(
         so_number=so_number,
         deal_id=int(deal.id),
         customer_id=int(customer_id),
-        product=rng.choice(["Aluminium P1020A", "Aluminium Billet", "Aluminium T-bar", "Aluminium Sows"]),
+        product=rng.choice(
+            ["Aluminium P1020A", "Aluminium Billet", "Aluminium T-bar", "Aluminium Sows"]
+        ),
         total_quantity_mt=float(qty_mt),
         unit="MT",
         unit_price=unit_price,
@@ -642,7 +711,9 @@ def _create_sales_order(
         lme_premium=float(rng.uniform(0.0, 120.0)),
         premium=float(rng.uniform(0.0, 80.0)),
         reference_price=reference_price,
-        fixing_deadline=(delivery_date - timedelta(days=rng.randint(7, 21))) if not is_fix else None,
+        fixing_deadline=(delivery_date - timedelta(days=rng.randint(7, 21)))
+        if not is_fix
+        else None,
         expected_delivery_date=delivery_date,
         location=rng.choice(["Rotterdam", "Hamburg", "Santos", "New Orleans", "Busan"]),
         status=models.OrderStatus.active if rng.random() > 0.10 else models.OrderStatus.draft,
@@ -688,7 +759,9 @@ def _create_purchase_order(
     delivery_date: date,
     rng: random.Random,
 ) -> models.PurchaseOrder:
-    existing = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.po_number == po_number).first()
+    existing = (
+        db.query(models.PurchaseOrder).filter(models.PurchaseOrder.po_number == po_number).first()
+    )
     if existing is not None:
         return existing
 
@@ -712,7 +785,9 @@ def _create_purchase_order(
         lme_premium=float(rng.uniform(0.0, 140.0)),
         premium=float(rng.uniform(0.0, 90.0)),
         reference_price=reference_price,
-        fixing_deadline=(delivery_date - timedelta(days=rng.randint(10, 25))) if not is_fix else None,
+        fixing_deadline=(delivery_date - timedelta(days=rng.randint(10, 25)))
+        if not is_fix
+        else None,
         expected_delivery_date=delivery_date,
         location=rng.choice(["Port Klang", "Sohar", "Halifax", "Ras Al Khair", "Bahrain"]),
         status=models.OrderStatus.active if rng.random() > 0.10 else models.OrderStatus.draft,
@@ -770,15 +845,18 @@ def _ensure_rfq_and_contract_for_so(
             quantity_mt=float(quantity_mt),
             period=f"{month_name[:3].title()}-{str(year)[-2:]}",
             status=models.RfqStatus.awarded,
-            sent_at=datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=rng.randint(5, 40)),
-            awarded_at=datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=rng.randint(1, 10)),
+            sent_at=datetime.utcnow().replace(tzinfo=timezone.utc)
+            - timedelta(days=rng.randint(5, 40)),
+            awarded_at=datetime.utcnow().replace(tzinfo=timezone.utc)
+            - timedelta(days=rng.randint(1, 10)),
             decided_by=actor_user_id,
-            decided_at=datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=rng.randint(1, 10)),
+            decided_at=datetime.utcnow().replace(tzinfo=timezone.utc)
+            - timedelta(days=rng.randint(1, 10)),
             trade_specs=[
                 {
                     "trade_type": "SWAP",
                     "trade_index": 0,
-                    "quote_group_id": f"{company.code}-QG-{uuid.uuid4().hex[:8]}",
+                    "quote_group_id": f"{company.code}-QG-{_rng_uuid4(rng).hex[:8]}",
                     "leg1": {
                         "side": "buy",
                         "price_type": "AVG",
@@ -859,9 +937,7 @@ def _ensure_rfq_and_contract_for_so(
     # Contract
     contract_number = f"{company.code}-CT-{int(rfq.id):05d}"
     contract = (
-        db.query(models.Contract)
-        .filter(models.Contract.contract_number == contract_number)
-        .first()
+        db.query(models.Contract).filter(models.Contract.contract_number == contract_number).first()
     )
     if contract is None:
         # Observation month bounds for settlement date heuristic.
@@ -1088,7 +1164,9 @@ def _seed_company(
     ]
     for i in range(n_deals):
         ref = f"{company.code} • D{i+1:03d} • {rng.choice(scenarios)}"
-        deals.append(_ensure_deal(db, company=company, reference_name=ref, created_by=actor_ids.get("admin")))
+        deals.append(
+            _ensure_deal(db, company=company, reference_name=ref, created_by=actor_ids.get("admin"))
+        )
 
     db.commit()
 
@@ -1314,7 +1392,7 @@ def _seed_company(
             period=rng.choice(["Jan-26", "Feb-26", "Mar-26", "Apr-26", "May-26", "Jun-26"]),
             instrument="LME Aluminium Swap",
             maturity_date=None,
-            reference_code=f"{company.code}-HEDGE-{uuid.uuid4().hex[:10].upper()}",
+            reference_code=f"{company.code}-HEDGE-{_rng_uuid4(rng).hex[:10].upper()}",
             status=models.HedgeStatus.active if rng.random() > 0.18 else models.HedgeStatus.closed,
         )
         db.add(hedge)
@@ -1351,12 +1429,16 @@ def _seed_company(
     # ---- Treasury Decisions + KYC overrides ----
     open_or_partial = (
         db.query(models.Exposure)
-        .filter(models.Exposure.status.in_([models.ExposureStatus.open, models.ExposureStatus.partially_hedged]))
+        .filter(
+            models.Exposure.status.in_(
+                [models.ExposureStatus.open, models.ExposureStatus.partially_hedged]
+            )
+        )
         .order_by(models.Exposure.id.asc())
         .all()
     )
 
-    for i, exp in enumerate(open_or_partial[: max(25, int(0.25 * len(open_or_partial)))]):
+    for _, exp in enumerate(open_or_partial[: max(25, int(0.25 * len(open_or_partial)))]):
         kind = rng.choice(
             [
                 models.TreasuryDecisionKind.hedge,
@@ -1377,14 +1459,15 @@ def _seed_company(
                     "Hold for better execution window; reassess next week.",
                 ]
             ),
-            decided_at=datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=rng.randint(0, 45)),
+            decided_at=datetime.utcnow().replace(tzinfo=timezone.utc)
+            - timedelta(days=rng.randint(0, 45)),
             actor_user_id=actor_ids.get("finance"),
             request_id=f"seed-{company.slug}",
             ip=None,
             user_agent="seed_realistic_data",
         )
 
-        gate = (td.kyc_gate_json or {})
+        gate = td.kyc_gate_json or {}
         if not bool(gate.get("allowed")) and rng.random() < 0.35:
             create_kyc_override(
                 db=db,
@@ -1562,17 +1645,30 @@ def main() -> int:
         action="store_true",
         help="Allow running even when ENVIRONMENT=production/prod",
     )
+    parser.add_argument(
+        "--allow-sqlite",
+        action="store_true",
+        help="Allow seeding when DATABASE_URL is SQLite (local-only).",
+    )
+    parser.add_argument(
+        "--no-require-supabase",
+        dest="require_supabase",
+        action="store_false",
+        default=True,
+        help="Allow non-Supabase Postgres DATABASE_URL values.",
+    )
 
     args = parser.parse_args()
 
     _env_guard(allow_production=bool(args.allow_production))
+    _db_guard(allow_sqlite=bool(args.allow_sqlite), require_supabase=bool(args.require_supabase))
 
     scale = float(args.scale)
     if scale <= 0:
         raise SystemExit("--scale must be > 0")
 
     rng = random.Random(int(args.seed))
-    correlation_id = f"seed:{uuid.uuid4()}"
+    correlation_id = str(_rng_uuid4(rng))
 
     targets: list[CompanySpec]
     if args.company == "all":
@@ -1593,7 +1689,7 @@ def main() -> int:
             if _already_seeded(db, company) and not args.force:
                 print(
                     f"[{company.code}] seed marker already exists; skipping. "
-                    "Use --reset to delete seeded data, or --force to re-run." 
+                    "Use --reset to delete seeded data, or --force to re-run."
                 )
                 continue
 

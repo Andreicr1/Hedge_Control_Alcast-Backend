@@ -17,6 +17,11 @@ From Supabase project settings:
 - Copy the **connection string**.
 - Ensure TLS is enabled: add `?sslmode=require`.
 
+Notes:
+
+- Use the exact connection string shown by Supabase (including user/host). If you use the Pooler host (`*.pooler.supabase.com`), keep the username format exactly as provided.
+- Do not use SQLite for Supabase/Render deploys.
+
 Example:
 
 - `postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require`
@@ -73,11 +78,41 @@ Optional:
 
 Because Docker services on Render don’t have a universal “release command” like Fly, use one of these:
 
-### Recommended: one-off shell / job
+### Recommended: one-off shell / job (safe)
 
 After the first deploy, open a Render shell (or use a one-off job if available) and run:
 
-- `alembic upgrade head`
+- `cd backend`
+- `alembic upgrade head` (or `python -m alembic upgrade head`)
+
+Why `cd backend`?
+
+- `alembic.ini` lives in `backend/`, so running from that folder avoids path/config mistakes.
+
+Quick verification (optional but useful):
+
+- `alembic current` (shows current revision)
+- `alembic heads` (shows repository head)
+
+If you see auth / TLS errors:
+
+- Confirm the Render `DATABASE_URL` matches the Supabase connection string and includes `?sslmode=require`.
+- Confirm the username/password are correct for the selected host (direct vs pooler).
+
+### Alternative: run migrations from your machine (same `DATABASE_URL`)
+
+If you prefer to run migrations locally against Supabase:
+
+- Set `DATABASE_URL` in your local `backend/.env` to the Supabase connection string (include `?sslmode=require`).
+- From `backend/` run Alembic using the project's Python environment:
+	- Windows (recommended): `./.venv311/Scripts/python.exe -m alembic upgrade head`
+	- Or activate the venv first, then: `python -m alembic upgrade head`
+
+If you accidentally run with a global/system Python, you may see SQLAlchemy/Alembic import errors due to version incompatibilities.
+
+Safety note:
+
+- Only do this when you are sure your local `DATABASE_URL` is pointing at the intended Supabase project.
 
 ### Alternative: run migrations on startup (toggle)
 
@@ -88,6 +123,10 @@ In Render env vars, set:
 - `RUN_MIGRATIONS_ON_START=true`
 
 If you later scale to multiple instances, keep this `false` and run migrations as a one-off job.
+
+Recommendation:
+
+- Prefer the one-off migration step for production, especially when running more than 1 instance.
 
 ## 6) Point the frontend to Render
 

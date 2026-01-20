@@ -15,6 +15,26 @@ From `Hedge_Control_Alcast-Backend/backend`:
 python scripts/seed_realistic_data.py --company all --reset
 ```
 
+By default, this script **refuses to seed SQLite** and **requires a Supabase-looking** `DATABASE_URL`.
+This is intentional to avoid accidentally seeding the wrong database.
+
+Override flags (only if you know what you’re doing):
+
+```bash
+python scripts/seed_realistic_data.py --company all --reset --allow-sqlite --no-require-supabase
+```
+
+## Supabase / Render workflow
+
+- Make sure your `DATABASE_URL` points to Supabase Postgres.
+- Run migrations against that same `DATABASE_URL`:
+
+```bash
+python -m alembic upgrade head
+```
+
+- Then run the seed script.
+
 Common options:
 
 ```bash

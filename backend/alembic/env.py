@@ -40,9 +40,17 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     from sqlalchemy import text
 
-    connectable = create_engine(settings.database_url, future=True)
+    provided_connection = config.attributes.get("connection")
 
-    with connectable.connect() as connection:
+    if provided_connection is not None:
+        connection = provided_connection
+        should_close = False
+    else:
+        connectable = create_engine(settings.database_url, future=True)
+        connection = connectable.connect()
+        should_close = True
+
+    try:
         # Create alembic_version table with larger varchar if it doesn't exist
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS alembic_version (
@@ -89,6 +97,9 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+    finally:
+        if should_close:
+            connection.close()
 
 
 if context.is_offline_mode():
