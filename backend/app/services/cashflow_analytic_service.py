@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app import models
@@ -72,6 +73,68 @@ def _mtm_price_d_minus_1(
     )
 
 
+def _bulk_mtm_prices_d_minus_1(
+    db: Session,
+    *,
+    symbols: set[str],
+    ref_date: date,
+) -> dict[str, float]:
+    """Resolve MTM(D-1) price for each symbol using a single DB pass.
+
+    This avoids N+1 queries when building analytic lines.
+    """
+
+    symbols = {s for s in (symbols or set()) if str(s).strip()}
+    if not symbols:
+        return {}
+
+    start, end = _as_utc_day_bounds(ref_date)
+
+    rows = (
+        db.query(models.LMEPrice)
+        .filter(models.LMEPrice.symbol.in_(sorted(symbols)))
+        .filter(models.LMEPrice.ts_price >= start)
+        .filter(models.LMEPrice.ts_price < end)
+        .order_by(models.LMEPrice.ts_price.desc())
+        .all()
+    )
+
+    latest_by_symbol_pt: dict[str, dict[str, float]] = {}
+    for r in rows:
+        sym = str(getattr(r, "symbol", "") or "")
+        pt = str(getattr(r, "price_type", "") or "")
+        if not sym or not pt:
+            continue
+        bucket = latest_by_symbol_pt.setdefault(sym, {})
+        # rows are ordered by ts desc; first one wins for each (symbol, price_type)
+        if pt not in bucket:
+            bucket[pt] = float(r.price)
+
+    out: dict[str, float] = {}
+    for sym in symbols:
+        priority = ["official"] if sym == "Q7Y00" else ["close", "live", "official"]
+        bucket = latest_by_symbol_pt.get(sym, {})
+        picked = None
+        for pt in priority:
+            if pt in bucket:
+                picked = float(bucket[pt])
+                break
+        if picked is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "mtm_price_missing",
+                    "message": "Missing MTM(D-1) market data for variable pricing cashflow projection.",
+                    "symbol": sym,
+                    "valuation_reference_date": ref_date.isoformat(),
+                    "price_types_tried": priority,
+                },
+            )
+        out[sym] = float(picked)
+
+    return out
+
+
 def _safe_date_for_order(*, expected_delivery_date: date | None, fixing_deadline: date | None) -> date:
     if expected_delivery_date is not None:
         return expected_delivery_date
@@ -122,6 +185,8 @@ def build_cashflow_analytic_lines(
             return False
         return True
 
+    symbols_needed: set[str] = set()
+
     for so in sales_orders:
         cf_date = _safe_date_for_order(
             expected_delivery_date=so.expected_delivery_date,
@@ -171,7 +236,8 @@ def build_cashflow_analytic_lines(
         else:
             # Variable pricing: MTM(D-1) for projection only.
             symbol = _resolve_lme_symbol(so.reference_price)
-            mtm_px = _mtm_price_d_minus_1(db, symbol=symbol, ref_date=valuation_ref)
+            symbols_needed.add(symbol)
+            mtm_px = 0.0
             amount = abs(qty * float(mtm_px))
             out.append(
                 CashFlowLineRead(
@@ -242,7 +308,8 @@ def build_cashflow_analytic_lines(
             )
         else:
             symbol = _resolve_lme_symbol(po.reference_price)
-            mtm_px = _mtm_price_d_minus_1(db, symbol=symbol, ref_date=valuation_ref)
+            symbols_needed.add(symbol)
+            mtm_px = 0.0
             amount = abs(qty * float(mtm_px))
             out.append(
                 CashFlowLineRead(
@@ -279,31 +346,30 @@ def build_cashflow_analytic_lines(
         c_q = c_q.filter(models.Contract.settlement_date <= filters.end_date)
 
     contracts = c_q.order_by(models.Contract.settlement_date.asc(), models.Contract.contract_id.asc()).all()
-    contract_items = build_cashflow_items(db, contracts, as_of=as_of)
-    for it in contract_items:
-        if it.settlement_date is None:
+    contract_ids = [str(c.contract_id) for c in contracts]
+    mtm_by_contract: dict[str, models.MtmContractSnapshot] = {}
+    if contract_ids:
+        for m in (
+            db.query(models.MtmContractSnapshot)
+            .filter(models.MtmContractSnapshot.contract_id.in_(sorted(set(contract_ids))))
+            .filter(models.MtmContractSnapshot.as_of_date == as_of)
+            .filter(models.MtmContractSnapshot.currency == "USD")
+            .all()
+        ):
+            mtm_by_contract[str(m.contract_id)] = m
+
+    for c in contracts:
+        if c.settlement_date is None:
             continue
-        if not _in_range(it.settlement_date):
+        if not _in_range(c.settlement_date):
             continue
 
-        val = None
+        # Prefer snapshot MTM for projection (fast, avoids per-contract compute).
+        m = mtm_by_contract.get(str(c.contract_id))
+        val = float(m.mtm_usd) if m is not None else 0.0
         valuation_method = "mtm"
         confidence = "estimated"
-        valuation_reference_date = it.projected_as_of
-
-        if as_of >= it.settlement_date and it.final_value_usd is not None:
-            val = float(it.final_value_usd)
-            valuation_method = "fixed"
-            confidence = "deterministic"
-            valuation_reference_date = it.settlement_date
-        elif it.projected_value_usd is not None:
-            val = float(it.projected_value_usd)
-
-        if val is None:
-            # Keep a placeholder line to preserve visibility, but remain explicit.
-            val = 0.0
-            confidence = "estimated"
-            valuation_method = "mtm"
+        valuation_reference_date = as_of
 
         direction = "inflow" if val >= 0 else "outflow"
         amount = abs(float(val))
@@ -311,10 +377,10 @@ def build_cashflow_analytic_lines(
         out.append(
             CashFlowLineRead(
                 entity_type="contract",
-                entity_id=str(it.contract_id),
-                parent_id=str(it.deal_id),
+                entity_id=str(c.contract_id),
+                parent_id=str(c.deal_id),
                 cashflow_type="financial",
-                date=it.settlement_date,
+                date=c.settlement_date,
                 amount=float(amount),
                 price_type=None,
                 valuation_method=valuation_method,  # type: ignore[arg-type]
@@ -323,11 +389,8 @@ def build_cashflow_analytic_lines(
                 direction=direction,  # type: ignore[arg-type]
                 quantity_mt=None,
                 unit_price_used=None,
-                source_reference=f"contract:{it.contract_id}",
-                explanation=(
-                    "Contract financial settlement cashflow line. "
-                    + ("Final (realized) value used." if valuation_method == "fixed" else "Projected value used.")
-                ),
+                source_reference=f"contract:{c.contract_id}",
+                explanation="Contract financial settlement cashflow line (projected MTM snapshot).",
                 as_of=as_of_ts,
             )
         )
@@ -337,6 +400,21 @@ def build_cashflow_analytic_lines(
         models.Exposure.status.in_([models.ExposureStatus.open, models.ExposureStatus.partially_hedged])
     )
     exposures = e_q.order_by(models.Exposure.id.asc()).all()
+
+    # Bulk hedge quantities (avoid N+1 over HedgeExposure)
+    hedged_by_exposure_id: dict[int, float] = {}
+    if exposures:
+        exp_ids = [int(e.id) for e in exposures]
+        rows = (
+            db.query(models.HedgeExposure.exposure_id, func.coalesce(func.sum(models.HedgeExposure.quantity_mt), 0.0))
+            .filter(models.HedgeExposure.exposure_id.in_(sorted(set(exp_ids))))
+            .group_by(models.HedgeExposure.exposure_id)
+            .all()
+        )
+        for exposure_id, qty in rows:
+            if exposure_id is None:
+                continue
+            hedged_by_exposure_id[int(exposure_id)] = float(qty or 0.0)
 
     # Pre-fetch related orders for price_type and deal linkage.
     so_by_id: dict[int, models.SalesOrder] = {}
@@ -353,7 +431,7 @@ def build_cashflow_analytic_lines(
 
     for exp in exposures:
         # Only include exposures that represent an open or partial gap.
-        hedged = _hedged_quantity_mt(db=db, exposure_id=int(exp.id))
+        hedged = float(hedged_by_exposure_id.get(int(exp.id), 0.0))
         total = float(exp.quantity_mt or 0.0)
         gap_qty = max(0.0, total - float(hedged))
         if gap_qty <= 1e-9:
@@ -386,7 +464,8 @@ def build_cashflow_analytic_lines(
         if filters.deal_id is not None and deal_id is not None and deal_id != int(filters.deal_id):
             continue
 
-        mtm_px = _mtm_price_d_minus_1(db, symbol=symbol, ref_date=valuation_ref)
+        symbols_needed.add(symbol)
+        mtm_px = 0.0
         amount = abs(gap_qty * float(mtm_px))
 
         direction: str
@@ -417,5 +496,34 @@ def build_cashflow_analytic_lines(
         )
 
     # Ensure deterministic ordering: date asc, cashflow_type, entity_type, entity_id
+    # Resolve any deferred MTM(D-1) prices in a single DB pass.
+    mtm_prices = _bulk_mtm_prices_d_minus_1(db, symbols=symbols_needed, ref_date=valuation_ref)
+    for line in out:
+        if line.valuation_method != "mtm":
+            continue
+        if line.unit_price_used is None:
+            continue
+        if float(line.unit_price_used) != 0.0:
+            continue
+
+        sym = _DEFAULT_LME_SYMBOL
+        if line.entity_type == "so":
+            so = db.get(models.SalesOrder, int(line.entity_id))
+            if so is not None:
+                sym = _resolve_lme_symbol(so.reference_price)
+        elif line.entity_type == "po":
+            po = db.get(models.PurchaseOrder, int(line.entity_id))
+            if po is not None:
+                sym = _resolve_lme_symbol(po.reference_price)
+        elif line.entity_type == "exposure":
+            # exposure symbol was resolved from source order earlier; default is acceptable fallback.
+            sym = _DEFAULT_LME_SYMBOL
+
+        px = float(mtm_prices.get(sym) or 0.0)
+        if px:
+            line.unit_price_used = px
+            if line.quantity_mt is not None:
+                line.amount = abs(float(line.quantity_mt) * px)
+
     out.sort(key=lambda r: (r.date, r.cashflow_type, r.entity_type, r.entity_id))
     return out
