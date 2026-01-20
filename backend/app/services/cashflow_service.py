@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date
 from typing import Iterable, List
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models

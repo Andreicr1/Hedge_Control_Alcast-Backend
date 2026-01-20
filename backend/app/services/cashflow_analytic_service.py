@@ -4,13 +4,11 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models
 from app.schemas.cashflow_analytic import CashFlowLineRead
-from app.services.cashflow_service import build_cashflow_items
-from app.services.exposure_engine import _hedged_quantity_mt
 
 _DEFAULT_LME_SYMBOL = "Q7Y00"  # official
 _ALLOWED_LME_SYMBOLS = {"P3Y00", "P4Y00", "Q7Y00"}
@@ -167,6 +165,7 @@ def build_cashflow_analytic_lines(
     valuation_ref = as_of - timedelta(days=1)
 
     out: list[CashFlowLineRead] = []
+    symbol_by_line: dict[tuple[str, str], str] = {}
 
     # ---- SO / PO (physical) ----
     so_q = db.query(models.SalesOrder)
@@ -239,6 +238,7 @@ def build_cashflow_analytic_lines(
             symbols_needed.add(symbol)
             mtm_px = 0.0
             amount = abs(qty * float(mtm_px))
+            symbol_by_line[("so", str(so.id))] = symbol
             out.append(
                 CashFlowLineRead(
                     entity_type="so",
@@ -311,6 +311,7 @@ def build_cashflow_analytic_lines(
             symbols_needed.add(symbol)
             mtm_px = 0.0
             amount = abs(qty * float(mtm_px))
+            symbol_by_line[("po", str(po.id))] = symbol
             out.append(
                 CashFlowLineRead(
                     entity_type="po",
@@ -467,6 +468,7 @@ def build_cashflow_analytic_lines(
         symbols_needed.add(symbol)
         mtm_px = 0.0
         amount = abs(gap_qty * float(mtm_px))
+        symbol_by_line[("exposure", str(exp.id))] = symbol
 
         direction: str
         if exp.exposure_type == models.ExposureType.active:
@@ -506,19 +508,7 @@ def build_cashflow_analytic_lines(
         if float(line.unit_price_used) != 0.0:
             continue
 
-        sym = _DEFAULT_LME_SYMBOL
-        if line.entity_type == "so":
-            so = db.get(models.SalesOrder, int(line.entity_id))
-            if so is not None:
-                sym = _resolve_lme_symbol(so.reference_price)
-        elif line.entity_type == "po":
-            po = db.get(models.PurchaseOrder, int(line.entity_id))
-            if po is not None:
-                sym = _resolve_lme_symbol(po.reference_price)
-        elif line.entity_type == "exposure":
-            # exposure symbol was resolved from source order earlier; default is acceptable fallback.
-            sym = _DEFAULT_LME_SYMBOL
-
+        sym = symbol_by_line.get((str(line.entity_type), str(line.entity_id))) or _DEFAULT_LME_SYMBOL
         px = float(mtm_prices.get(sym) or 0.0)
         if px:
             line.unit_price_used = px
