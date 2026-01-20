@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-WorkflowDecisionValue = Literal["approved", "rejected"]
+WorkflowDecisionValue = Literal["approved", "rejected", "adjustment_requested"]
 WorkflowRequestStatus = Literal["pending", "approved", "rejected", "executed"]
 
 

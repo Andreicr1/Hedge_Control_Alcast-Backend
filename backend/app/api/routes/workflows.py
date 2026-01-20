@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # ruff: noqa: B008
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_
@@ -93,17 +93,16 @@ def create_workflow_decision(
         raise HTTPException(status_code=403, detail="Insufficient role for decision")
 
     now = datetime.utcnow()
-    new_status: Literal["approved", "rejected"] = (
-        "approved" if payload.decision == "approved" else "rejected"
-    )
+    decision_value = payload.decision
+    status_outcome = "approved" if decision_value == "approved" else "rejected"
 
     # Idempotent replay support: if already decided with same outcome, return existing decision.
     if wf.status != "pending":
-        if wf.status == new_status:
+        if wf.status == status_outcome:
             existing = (
                 db.query(models.WorkflowDecision)
                 .filter(models.WorkflowDecision.workflow_request_id == workflow_request_id)
-                .filter(models.WorkflowDecision.decision == new_status)
+                .filter(models.WorkflowDecision.decision == decision_value)
                 .order_by(models.WorkflowDecision.id.desc())
                 .first()
             )
@@ -120,17 +119,17 @@ def create_workflow_decision(
                 models.WorkflowRequest.status == "pending",
             )
         )
-        .update({"status": new_status, "decided_at": now})
+        .update({"status": status_outcome, "decided_at": now})
     )
     if updated != 1:
         db.rollback()
         raise HTTPException(status_code=409, detail="Workflow request status changed")
 
-    decision_idempotency_key = f"wf_decision:{workflow_request_id}:{new_status}"
+    decision_idempotency_key = f"wf_decision:{workflow_request_id}:{decision_value}"
 
     d = models.WorkflowDecision(
         workflow_request_id=workflow_request_id,
-        decision=new_status,
+        decision=decision_value,
         justification=payload.justification,
         decided_by_user_id=getattr(current_user, "id", None),
         decided_at=now,
@@ -160,13 +159,14 @@ def create_workflow_decision(
         getattr(current_user, "id", None),
         {
             "workflow_request_id": workflow_request_id,
-            "decision": new_status,
+            "decision": decision_value,
+            "status": status_outcome,
             "action": wf.action,
             "subject_type": wf.subject_type,
             "subject_id": wf.subject_id,
         },
         db=db,
-        idempotency_key=f"workflow:{workflow_request_id}:decision:{new_status}",
+        idempotency_key=f"workflow:{workflow_request_id}:decision:{decision_value}",
         request_id=request.headers.get("X-Request-ID"),
         ip=(request.client.host if request.client else None),
         user_agent=request.headers.get("User-Agent"),
@@ -174,16 +174,25 @@ def create_workflow_decision(
 
     emit_timeline_event(
         db=db,
-        event_type="WORKFLOW_APPROVED" if new_status == "approved" else "WORKFLOW_REJECTED",
+        event_type=(
+            "WORKFLOW_APPROVED"
+            if decision_value == "approved"
+            else (
+                "WORKFLOW_ADJUSTMENT_REQUESTED"
+                if decision_value == "adjustment_requested"
+                else "WORKFLOW_REJECTED"
+            )
+        ),
         subject_type="workflow",
         subject_id=int(workflow_request_id),
         correlation_id=correlation_id,
-        idempotency_key=f"workflow:{workflow_request_id}:{new_status}",
+        idempotency_key=f"workflow:{workflow_request_id}:{decision_value}",
         visibility="finance",
         actor_user_id=getattr(current_user, "id", None),
         payload={
             "workflow_request_id": workflow_request_id,
-            "decision": new_status,
+            "decision": decision_value,
+            "status": status_outcome,
             "action": wf.action,
             "subject_type": wf.subject_type,
             "subject_id": wf.subject_id,
