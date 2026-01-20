@@ -81,6 +81,33 @@ def _run_migrations_if_configured() -> None:
     with engine.connect() as connection:
         dialect = str(connection.dialect.name or "").lower()
 
+        def _to_regclass(qualified: str) -> str | None:
+            # Postgres-only. Returns NULL if missing.
+            return connection.execute(text("select to_regclass(:q)"), {"q": qualified}).scalar()
+
+        def _bootstrap_alembic_version_if_needed() -> None:
+            if dialect != "postgresql":
+                return
+
+            try:
+                alembic_table = _to_regclass("public.alembic_version")
+                if not alembic_table:
+                    return
+
+                count = int(connection.execute(text("select count(*) from public.alembic_version")).scalar() or 0)
+                if count > 0:
+                    return
+
+                users_table = _to_regclass("public.users")
+                if not users_table:
+                    return
+            except Exception as e:
+                logger.warning("alembic_bootstrap_check_failed", extra={"error": str(e)})
+                return
+
+            logger.info("alembic_bootstrap_stamp_head")
+            command.stamp(alembic_cfg, "head")
+
         # Best-effort: avoid concurrent migrations across multiple instances.
         lock_acquired = True
         if dialect == "postgresql":
@@ -99,6 +126,9 @@ def _run_migrations_if_configured() -> None:
         try:
             # Reuse this connection inside Alembic env.py (config.attributes['connection']).
             alembic_cfg.attributes["connection"] = connection
+
+            # If DB schema exists but alembic_version is empty (legacy bootstrap), stamp head first.
+            _bootstrap_alembic_version_if_needed()
             command.upgrade(alembic_cfg, "head")
             logger.info("migrations_applied")
         finally:

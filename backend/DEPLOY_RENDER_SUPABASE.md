@@ -76,9 +76,21 @@ Optional:
 
 ## 5) Run migrations (Alembic)
 
-Because Docker services on Render don’t have a universal “release command” like Fly, use one of these:
+This backend can run migrations automatically on startup (recommended for single-instance Render services),
+or you can run them as a one-off step.
 
-### Recommended: one-off shell / job (safe)
+### Recommended (single instance): run migrations on startup
+
+In Render env vars, set:
+
+- `RUN_MIGRATIONS_ON_START=true`
+
+Notes:
+
+- Migrations run inside app startup and use a Postgres advisory lock to avoid concurrent upgrades.
+- If you later scale to multiple instances, this is still safe (instances that fail to acquire the lock will skip).
+
+### Alternative: one-off shell / job (safe)
 
 After the first deploy, open a Render shell (or use a one-off job if available) and run:
 
@@ -114,19 +126,7 @@ Safety note:
 
 - Only do this when you are sure your local `DATABASE_URL` is pointing at the intended Supabase project.
 
-### Alternative: run migrations on startup (toggle)
-
-This repo includes `backend/start-prod.sh`, which can run migrations before starting the API.
-In Render env vars, set:
-
-
-- `RUN_MIGRATIONS_ON_START=true`
-
-If you later scale to multiple instances, keep this `false` and run migrations as a one-off job.
-
-Recommendation:
-
-- Prefer the one-off migration step for production, especially when running more than 1 instance.
+### Alternative: run migrations from your machine (same `DATABASE_URL`)
 
 ## 6) Point the frontend to Render
 

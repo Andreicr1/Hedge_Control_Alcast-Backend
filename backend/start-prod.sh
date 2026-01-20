@@ -79,27 +79,10 @@ if is_weak_secret_key "${SECRET_KEY-}"; then
 fi
 
 if [ "${RUN_MIGRATIONS_ON_START:-false}" = "true" ]; then
-  echo "[startup] Running alembic migrations..."
-  echo "[startup] Bootstrapping alembic version (if needed)..."
-  STRICT_MIGRATIONS="${MIGRATIONS_STRICT:-false}"
-
-  if ! python -m app.scripts.alembic_bootstrap; then
-    echo "[startup] WARNING: alembic bootstrap failed." 1>&2
-    if [ "${STRICT_MIGRATIONS}" = "true" ]; then
-      echo "[startup] ERROR: MIGRATIONS_STRICT=true; aborting startup." 1>&2
-      exit 1
-    fi
-  fi
-
-  if ! alembic upgrade head; then
-    echo "[startup] WARNING: alembic upgrade failed." 1>&2
-    if [ "${STRICT_MIGRATIONS}" = "true" ]; then
-      echo "[startup] ERROR: MIGRATIONS_STRICT=true; aborting startup." 1>&2
-      exit 1
-    fi
-  fi
+  echo "[startup] Migrations enabled (RUN_MIGRATIONS_ON_START=true)."
+  echo "[startup] Note: migrations run inside the app startup (advisory-lock protected)."
 else
-  echo "[startup] Skipping migrations (set RUN_MIGRATIONS_ON_START=true to enable)."
+  echo "[startup] Migrations disabled (set RUN_MIGRATIONS_ON_START=true to enable)."
 fi
 
 echo "[startup] Starting API on port ${PORT_VALUE}"
