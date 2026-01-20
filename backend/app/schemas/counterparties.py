@@ -72,6 +72,9 @@ class CounterpartyUpdate(BaseModel):
 class CounterpartyRead(CounterpartyBase):
     id: int
     created_at: datetime
+    # Seed/dev data may contain placeholders (e.g. "N/A") that are not RFC-valid emails.
+    # Do not fail serialization on reads; enforce EmailStr on writes via create/update.
+    contact_email: Optional[str] = Field(None, max_length=255)
 
     class Config:
         orm_mode = True

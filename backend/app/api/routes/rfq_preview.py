@@ -58,6 +58,7 @@ def preview_rfq(payload: RfqPreviewRequest) -> RfqPreviewResponse:
             cal=cal,
             company_header=payload.company_header,
             company_label_for_payoff=payload.company_label_for_payoff,
+            language=payload.language,
         )
         return RfqPreviewResponse(text=text)
     except ValueError as exc:

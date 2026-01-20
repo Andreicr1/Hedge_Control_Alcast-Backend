@@ -196,11 +196,39 @@ MONTHS_EN = [
     "December",
 ]
 MONTH_INDEX: Dict[str, int] = {m: i for i, m in enumerate(MONTHS_EN)}
+MONTHS_PT = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+]
 
 
 def fmt_date_short(d: date) -> str:
     """Legacy format: DD/MM/YY"""
     return d.strftime("%d/%m/%y")
+
+
+def fmt_date_pt(d: date) -> str:
+    """Bank-friendly format: DD/MM/YYYY."""
+    return d.strftime("%d/%m/%Y")
+
+
+def month_name_pt(month_name_en: Optional[str]) -> Optional[str]:
+    if not month_name_en:
+        return None
+    idx = MONTH_INDEX.get(month_name_en)
+    if idx is None:
+        return None
+    return MONTHS_PT[idx]
 
 
 def fmt_qty(qty: float) -> str:
@@ -296,6 +324,39 @@ def build_leg_text(leg: Leg, cal: HolidayCalendar) -> str:
     return txt.strip()
 
 
+def build_leg_text_pt(leg: Leg, cal: HolidayCalendar) -> str:
+    """Simplified Portuguese wording for banks."""
+    side = "Compra" if leg.side == Side.BUY else "Venda"
+    qty = fmt_qty(leg.quantity_mt)
+
+    product = "Alumínio Primário"
+
+    if leg.price_type == PriceType.AVG:
+        month = month_name_pt(leg.month_name) or (leg.month_name or "")
+        if month and leg.year is not None:
+            return f"{side} de {qty} MT de {product}, Média {month} {leg.year}".strip()
+        return f"{side} de {qty} MT de {product}, Média".strip()
+
+    if leg.price_type == PriceType.AVG_INTER:
+        if leg.start_date and leg.end_date:
+            ss = fmt_date_pt(leg.start_date)
+            ee = fmt_date_pt(leg.end_date)
+            return f"{side} de {qty} MT de {product}, Média de {ss} a {ee}"
+        return f"{side} de {qty} MT de {product}, Média (período a definir)".strip()
+
+    if leg.price_type == PriceType.FIX:
+        if leg.fixing_date:
+            return f"{side} de {qty} MT de {product}, Data de Fixação: {fmt_date_pt(leg.fixing_date)}"
+        return f"{side} de {qty} MT de {product}, Preço fixo".strip()
+
+    if leg.price_type == PriceType.C2R:
+        if leg.fixing_date:
+            return f"{side} de {qty} MT de {product}, C2R em {fmt_date_pt(leg.fixing_date)}"
+        return f"{side} de {qty} MT de {product}, C2R".strip()
+
+    return f"{side} de {qty} MT de {product}".strip()
+
+
 # -----------------------------
 # Execution Instruction (Limit / Resting)
 # -----------------------------
@@ -377,6 +438,24 @@ def build_expected_payoff_text(
     )
 
 
+def build_expected_payoff_text_pt(
+    fixed_leg: Leg,
+    other_leg: Optional[Leg],
+    cal: HolidayCalendar,
+    company_label: str = "Alcast",
+) -> str:
+    """Simplified Portuguese payoff hint for banks."""
+    pays_when_higher = fixed_leg.side == Side.SELL
+    action_high = "paga" if pays_when_higher else "recebe"
+    action_low = "recebe" if pays_when_higher else "paga"
+
+    # Keep text generic; banks usually want directionality, not full algebra.
+    return (
+        f"Se o preço realizado for maior que o preço fixado, {company_label} {action_high} a diferença.\n"
+        f"Se o preço realizado for menor que o preço fixado, {company_label} {action_low} a diferença."
+    )
+
+
 # -----------------------------
 # Validation (mirrors legacy rules)
 # -----------------------------
@@ -440,6 +519,7 @@ def generate_rfq_text(
     cal: Optional[HolidayCalendar] = None,
     company_header: Optional[str] = None,
     company_label_for_payoff: str = "Alcast",
+    language: str = "en",
 ) -> str:
     cal = cal or HolidayCalendar()
 
@@ -501,6 +581,88 @@ def generate_rfq_text(
         return a, b
 
     l1_adj, l2_adj = _compute_pair_overrides(l1, l2)
+
+    if str(language).strip().lower() == "pt":
+        # Bank-oriented output: multi-line, simplified Portuguese.
+        ppt: Optional[date] = None
+        for candidate in (
+            l1_adj if l1_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER) else None,
+            l2_adj if l2_adj and l2_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER) else None,
+            l1_adj,
+            l2_adj,
+        ):
+            if candidate is None:
+                continue
+            ppt = compute_ppt_for_leg(candidate, cal)
+            if ppt:
+                break
+
+        ppt_str = fmt_date_pt(ppt) if ppt else None
+
+        order_leg = l1_adj if l1_adj.order else (l2_adj if (l2_adj and l2_adj.order) else None)
+        if order_leg and order_leg.order:
+            validity = order_leg.order.validity or "Day"
+            if order_leg.order.order_type == OrderType.LIMIT:
+                price = (order_leg.order.limit_price or "").strip()
+                exec_pt = f"Limite @ USD {price} (validade: {validity})".strip()
+            elif order_leg.order.order_type == OrderType.RESTING:
+                exec_pt = f"Ordem em aberto (validade: {validity})"
+            else:
+                exec_pt = str(order_leg.order.order_type.value)
+        else:
+            exec_pt = "A Mercado"
+
+        lines: List[str] = []
+        if company_header:
+            lines.append(str(company_header).strip())
+            lines.append("")
+
+        lines.append("Operação 1")
+        lines.append("----------")
+        lines.append(build_leg_text_pt(l1_adj, cal))
+        if ppt_str:
+            lines.append(f"Data de Pagamento: {ppt_str}")
+
+        if l2_adj is not None:
+            lines.append("")
+            lines.append(build_leg_text_pt(l2_adj, cal))
+            if ppt_str:
+                lines.append(f"Data de Pagamento: {ppt_str}")
+
+        lines.append("")
+        lines.append(f"Execução: {exec_pt}")
+
+        payoff_pt = None
+        if l2_adj is None:
+            if l1_adj.price_type == PriceType.FIX and l1_adj.fixing_date:
+                payoff_pt = build_expected_payoff_text_pt(
+                    fixed_leg=l1_adj,
+                    other_leg=None,
+                    cal=cal,
+                    company_label=company_label_for_payoff,
+                )
+        else:
+            fix_types = {PriceType.FIX, PriceType.C2R}
+            if l1_adj.price_type in fix_types and l2_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER):
+                payoff_pt = build_expected_payoff_text_pt(
+                    fixed_leg=l1_adj,
+                    other_leg=l2_adj,
+                    cal=cal,
+                    company_label=company_label_for_payoff,
+                )
+            elif l2_adj.price_type in fix_types and l1_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER):
+                payoff_pt = build_expected_payoff_text_pt(
+                    fixed_leg=l2_adj,
+                    other_leg=l1_adj,
+                    cal=cal,
+                    company_label=company_label_for_payoff,
+                )
+
+        if payoff_pt:
+            lines.append("")
+            lines.append(payoff_pt)
+
+        return "\n".join(lines).strip()
 
     leg1_text = build_leg_text(l1_adj, cal)
     leg2_text = build_leg_text(l2_adj, cal) if l2_adj else None

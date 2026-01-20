@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +30,10 @@ class RfqPreviewRequest(BaseModel):
     leg1: LegInput
     leg2: Optional[LegInput] = None
     sync_ppt: bool = False
+    language: Literal["en", "pt"] = Field(
+        default="en",
+        description="Output language. 'en' for brokers, 'pt' for banks (simplified Portuguese).",
+    )
     holidays: Optional[List[str]] = Field(
         default=None, description="Optional holiday list in ISO YYYY-MM-DD for business-day calc"
     )
