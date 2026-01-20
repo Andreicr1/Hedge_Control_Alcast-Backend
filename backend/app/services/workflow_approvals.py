@@ -333,14 +333,22 @@ def require_approval_or_raise(
             correlation_id=correlation_id,
         )
 
-        _emit_workflow_requested(
-            db=db,
-            wf=wf,
-            request_id=request_id,
-            ip=ip,
-            user_agent=user_agent,
-            actor_user_id=requested_by_user_id,
-        )
+        # Critical UX rule:
+        # - If a request already exists and is approved, allow the caller to proceed without
+        #   requiring the client to pass workflow_request_id (enables "approve then retry" loop).
+        # - Otherwise, block and return an approval_required payload (pending/rejected/executed).
+        if wf.status == "approved":
+            return wf
+
+        if wf.status == "pending":
+            _emit_workflow_requested(
+                db=db,
+                wf=wf,
+                request_id=request_id,
+                ip=ip,
+                user_agent=user_agent,
+                actor_user_id=requested_by_user_id,
+            )
         _http_approval_required(wf=wf)
 
     wf = db.get(models.WorkflowRequest, int(workflow_request_id))

@@ -43,6 +43,21 @@ python scripts/seed_realistic_data.py --company alcast_brasil --scale 1.2 --rese
 python scripts/seed_realistic_data.py --company all --force
 ```
 
+## EOD materialization (P&L + Cashflow baseline)
+
+After LME prices + realistic dataset exist, you can materialize the read models used by the Finance screens:
+
+```bash
+python scripts/run_eod_snapshots.py --as-of 2026-01-20
+```
+
+Optional:
+
+```bash
+python scripts/run_eod_snapshots.py --as-of 2026-01-20 --dry-run
+python scripts/run_eod_snapshots.py --as-of 2026-01-20 --filters-json "{\"deal_id\": 123}"
+```
+
 ## Notes on multi-company separation
 
 The current schema doesn’t expose a first-class `company_id` tenant field in the core domain models.
