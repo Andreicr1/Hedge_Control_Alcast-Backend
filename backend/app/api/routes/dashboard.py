@@ -8,6 +8,7 @@ frontend types in `DashboardSummary`.
 from __future__ import annotations
 
 import os
+import logging
 from datetime import date, datetime
 from typing import Any
 
@@ -23,6 +24,7 @@ from app.services.contract_mtm_service import (
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+logger = logging.getLogger("alcast.dashboard")
 
 
 def _iso(dt: datetime | None) -> str:
@@ -109,6 +111,7 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
 
     snapshot_as_of = today
     is_stale = False
+    snapshot_missing = False
 
     current, count = _portfolio_total_for_day(today)
     if not count:
@@ -117,11 +120,20 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
             snapshot_as_of = latest_day
             is_stale = True
             current, count = _portfolio_total_for_day(latest_day)
+        else:
+            snapshot_as_of = None
+            is_stale = True
+            snapshot_missing = True
 
-    base_day = snapshot_as_of
-    prev_day_total, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 1))
-    weekly_prev, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 7))
-    monthly_prev, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 30))
+    if snapshot_as_of:
+        base_day = snapshot_as_of
+        prev_day_total, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 1))
+        weekly_prev, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 7))
+        monthly_prev, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 30))
+    else:
+        prev_day_total = None
+        weekly_prev = None
+        monthly_prev = None
 
     if current is None:
         current = 0.0
@@ -134,7 +146,12 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
 
     period_label = f"Última atualização: {_iso(datetime.utcnow())}"
     if is_stale:
-        period_label = f"Snapshot MTM stale ({snapshot_as_of.isoformat()}) · {_iso(datetime.utcnow())}"
+        if snapshot_as_of:
+            period_label = (
+                f"Snapshot MTM stale ({snapshot_as_of.isoformat()}) · {_iso(datetime.utcnow())}"
+            )
+        else:
+            period_label = f"Snapshot MTM missing · {_iso(datetime.utcnow())}"
 
     return {
         "value": current,
@@ -143,6 +160,7 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
         "changePercent": change_percent,
         "status": _status_from_value(change),
         "is_stale": bool(is_stale),
+        "snapshot_missing": bool(snapshot_missing),
         "snapshot_as_of": snapshot_as_of.isoformat() if snapshot_as_of else None,
         "indicators": {
             "dailyPnL": change,
@@ -396,12 +414,49 @@ def get_dashboard_summary(
 
     Returns MTM, settlements, RFQs, contracts, and timeline
     """
+    def _safe_call(label: str, func, fallback):
+        try:
+            return func()
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("dashboard_summary_failed", extra={"section": label, "error": str(exc)})
+            return fallback
+
     return {
-        "mtm": _build_mtm_widget(db),
-        "settlements": _build_settlements_widget(db),
-        "rfqs": _build_dashboard_rfqs(db),
-        "contracts": _build_dashboard_contracts(db),
-        "timeline": _build_dashboard_timeline(db, current_user=current_user),
+        "mtm": _safe_call(
+            "mtm",
+            lambda: _build_mtm_widget(db),
+            {
+                "value": 0.0,
+                "currency": "USD",
+                "change": 0.0,
+                "changePercent": 0.0,
+                "status": "neutral",
+                "is_stale": True,
+                "snapshot_missing": True,
+                "snapshot_as_of": None,
+                "indicators": {"dailyPnL": 0.0, "weeklyPnL": 0.0, "monthlyPnL": 0.0},
+                "period": f"Snapshot MTM missing · {_iso(datetime.utcnow())}",
+            },
+        ),
+        "settlements": _safe_call(
+            "settlements",
+            lambda: _build_settlements_widget(db),
+            {
+                "total": 0.0,
+                "currency": "USD",
+                "count": 0,
+                "breakdown": [],
+                "status": "neutral",
+                "period": "Hoje",
+            },
+        ),
+        "rfqs": _safe_call("rfqs", lambda: _build_dashboard_rfqs(db), []),
+        "contracts": _safe_call("contracts", lambda: _build_dashboard_contracts(db), []),
+        "timeline": _safe_call(
+            "timeline",
+            lambda: _build_dashboard_timeline(db, current_user=current_user),
+            [],
+        ),
         "lastUpdated": _iso(datetime.utcnow()),
     }
 

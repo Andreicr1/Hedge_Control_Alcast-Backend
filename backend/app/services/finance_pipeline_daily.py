@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+import logging
 from typing import Any, Callable, Literal
 
 from sqlalchemy.orm import Session
@@ -34,6 +35,9 @@ from app.services.mtm_contract_timeline import emit_mtm_contract_snapshot_create
 from app.services.pnl_snapshot_service import PnlSnapshotMaterializeResult, execute_pnl_snapshot_run
 from app.services.pnl_timeline import emit_pnl_snapshot_created
 from app.services.timeline_emitters import correlation_id_from_request_id
+from app.services.westmetall import as_of_datetime_utc, fetch_westmetall_daily_rows
+
+logger = logging.getLogger("alcast.finance_pipeline")
 
 FinancePipelineStepName = Literal[
     "market_snapshot_resolve",
@@ -74,6 +78,117 @@ StepImpl = Callable[
     [Session, FinancePipelineRunPlan, models.FinancePipelineRun],
     StepArtifacts | None,
 ]
+
+
+def _default_market_snapshot_resolve_step(
+    db: Session,
+    plan: FinancePipelineRunPlan,
+    run: models.FinancePipelineRun,
+) -> StepArtifacts:
+    """Ensure market snapshots exist for the as_of_date.
+
+    This step is non-blocking: it never raises if data is missing.
+    It attempts to backfill the required LME prices for the day.
+    """
+
+    as_of_ts = as_of_datetime_utc(plan.as_of_date)
+    required = {
+        "P3Y00": {
+            "name": "LME Aluminium Cash Settlement",
+            "market": "LME",
+        },
+        "P4Y00": {
+            "name": "LME Aluminium 3M Settlement",
+            "market": "LME",
+        },
+    }
+
+    existing = {
+        str(row.symbol): row
+        for row in (
+            db.query(models.LMEPrice)
+            .filter(models.LMEPrice.source == "westmetall")
+            .filter(models.LMEPrice.symbol.in_(list(required.keys())))
+            .filter(models.LMEPrice.ts_price == as_of_ts)
+            .all()
+        )
+    }
+
+    missing_symbols = [s for s in required.keys() if s not in existing]
+    if not missing_symbols:
+        return {
+            "as_of_date": plan.as_of_date.isoformat(),
+            "resolved": True,
+            "inserted": 0,
+            "skipped": len(required),
+            "missing_symbols": [],
+        }
+
+    row = None
+    try:
+        rows = fetch_westmetall_daily_rows(plan.as_of_date.year)
+        for r in rows:
+            if r.as_of_date == plan.as_of_date:
+                row = r
+                break
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "market_snapshot_fetch_failed",
+            extra={"error": str(exc), "as_of_date": plan.as_of_date.isoformat()},
+        )
+
+    inserted = 0
+    skipped = 0
+    missing_data: list[str] = []
+    if row:
+        cash = row.cash_settlement
+        if "P3Y00" in missing_symbols:
+            if cash is not None:
+                db.add(
+                    models.LMEPrice(
+                        symbol="P3Y00",
+                        name=required["P3Y00"]["name"],
+                        market=required["P3Y00"]["market"],
+                        price=float(cash),
+                        price_type="close",
+                        ts_price=as_of_ts,
+                        source="westmetall",
+                    )
+                )
+                inserted += 1
+            else:
+                missing_data.append("P3Y00")
+        else:
+            skipped += 1
+
+        three_m = row.three_month_settlement
+        if "P4Y00" in missing_symbols:
+            if three_m is not None:
+                db.add(
+                    models.LMEPrice(
+                        symbol="P4Y00",
+                        name=required["P4Y00"]["name"],
+                        market=required["P4Y00"]["market"],
+                        price=float(three_m),
+                        price_type="close",
+                        ts_price=as_of_ts,
+                        source="westmetall",
+                    )
+                )
+                inserted += 1
+            else:
+                missing_data.append("P4Y00")
+        else:
+            skipped += 1
+
+    return {
+        "as_of_date": plan.as_of_date.isoformat(),
+        "resolved": inserted > 0 or not missing_symbols,
+        "inserted": inserted,
+        "skipped": skipped,
+        "missing_symbols": missing_symbols,
+        "missing_data": missing_data,
+    }
 
 
 def _default_mtm_snapshot_step(
@@ -395,6 +510,16 @@ def execute_finance_pipeline_daily(
             transition_finance_pipeline_step_status(db, step=step, new_status="running")
 
         impl = impls.get(str(step_name))
+        if impl is None and str(step_name) == "market_snapshot_resolve":
+
+            def _impl(
+                _db: Session,
+                _plan: FinancePipelineRunPlan,
+                _run: models.FinancePipelineRun,
+            ):
+                return _default_market_snapshot_resolve_step(_db, _plan, _run)
+
+            impl = _impl
         if impl is None and str(step_name) == "mtm_snapshot":
 
             def _impl(
@@ -558,6 +683,10 @@ def execute_finance_pipeline_daily(
             run=run,
             request_id=request_id,
             actor_user_id=requested_by_user_id,
+        )
+        logger.info(
+            "finance_pipeline_daily_ok",
+            extra={"as_of_date": plan.as_of_date.isoformat(), "run_id": int(run.id)},
         )
 
     return FinancePipelineDailyMaterializeResult(

@@ -27,8 +27,8 @@ if is_postgres:
 
     # Defaults tuned for Supabase pooler session mode, where max clients are small.
     is_supabase_pooler = "pooler.supabase.com" in db_url
-    default_pool_size = "1" if is_supabase_pooler else "5"
-    default_max_overflow = "0" if is_supabase_pooler else "10"
+    default_pool_size = "5" if is_supabase_pooler else "5"
+    default_max_overflow = "5" if is_supabase_pooler else "10"
 
     pool_size = int(os.getenv("DB_POOL_SIZE", default_pool_size))
     max_overflow = int(os.getenv("DB_MAX_OVERFLOW", default_max_overflow))
