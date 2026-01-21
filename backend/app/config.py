@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # If not set, ingestion endpoints should reject all requests.
     ingest_token: Optional[str] = Field(default=os.getenv("INGEST_TOKEN"), env="INGEST_TOKEN")
 
+    # Optional token for public, read-only report exports (e.g., Power BI scheduled refresh).
+    # If not set, public report endpoints should reject all requests.
+    reports_public_token: Optional[str] = Field(
+        default=os.getenv("REPORTS_PUBLIC_TOKEN"), env="REPORTS_PUBLIC_TOKEN"
+    )
+
     class Config:
         env_file = ".env"
         case_sensitive = False

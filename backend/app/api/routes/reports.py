@@ -3,11 +3,12 @@ import io
 from datetime import date, datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session, selectinload
 
 from app import models
 from app.api.deps import require_roles
+from app.config import settings
 from app.database import get_db
 from app.schemas.cashflow_ledger import CashflowLedgerLineRead
 from app.schemas.report_attempts import RfqAttemptReport
@@ -17,22 +18,17 @@ from app.services.cashflow_ledger_export_service import build_cashflow_ledger_li
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
-@router.get(
-    "/cashflow-ledger",
-    response_model=List[CashflowLedgerLineRead],
-    dependencies=[Depends(require_roles(models.RoleName.financeiro, models.RoleName.auditoria))],
-)
-def cashflow_ledger_export(
-    db: Session = Depends(get_db),
-    deal_id: Optional[int] = Query(None),
-    start_date: Optional[date] = Query(None),
-    end_date: Optional[date] = Query(None),
-    as_of: Optional[date] = Query(None),
-    lme_official_symbol: str = Query("Q7Y00", min_length=1, max_length=16),
-    format: str = Query("json", description="json or csv"),
-):
+def _cashflow_ledger_export_rows(
+    *,
+    db: Session,
+    deal_id: Optional[int],
+    start_date: Optional[date],
+    end_date: Optional[date],
+    as_of: Optional[date],
+    lme_official_symbol: str,
+) -> List[CashflowLedgerLineRead]:
     as_of_date = as_of or date.today()
-    rows = build_cashflow_ledger_lines(
+    return build_cashflow_ledger_lines(
         db,
         as_of=as_of_date,
         start_date=start_date,
@@ -41,9 +37,8 @@ def cashflow_ledger_export(
         lme_official_symbol=lme_official_symbol,
     )
 
-    if format.lower() != "csv":
-        return rows
 
+def _cashflow_ledger_rows_to_csv(rows: List[CashflowLedgerLineRead]) -> str:
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -98,7 +93,74 @@ def cashflow_ledger_export(
             ]
         )
 
-    return Response(content=output.getvalue(), media_type="text/csv")
+    return output.getvalue()
+
+
+@router.get(
+    "/cashflow-ledger",
+    response_model=List[CashflowLedgerLineRead],
+    dependencies=[Depends(require_roles(models.RoleName.financeiro, models.RoleName.auditoria))],
+)
+def cashflow_ledger_export(
+    db: Session = Depends(get_db),
+    deal_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    as_of: Optional[date] = Query(None),
+    lme_official_symbol: str = Query("Q7Y00", min_length=1, max_length=16),
+    format: str = Query("json", description="json or csv"),
+):
+    rows = _cashflow_ledger_export_rows(
+        db=db,
+        deal_id=deal_id,
+        start_date=start_date,
+        end_date=end_date,
+        as_of=as_of,
+        lme_official_symbol=lme_official_symbol,
+    )
+
+    if format.lower() != "csv":
+        return rows
+
+    return Response(content=_cashflow_ledger_rows_to_csv(rows), media_type="text/csv")
+
+
+@router.get(
+    "/cashflow-ledger-public",
+    response_model=List[CashflowLedgerLineRead],
+)
+def cashflow_ledger_export_public(
+    token: str = Query(..., min_length=8, description="Service token for BI refresh"),
+    db: Session = Depends(get_db),
+    deal_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    as_of: Optional[date] = Query(None),
+    lme_official_symbol: str = Query("Q7Y00", min_length=1, max_length=16),
+    format: str = Query("json", description="json or csv"),
+):
+    expected = (settings.reports_public_token or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Public reports are not configured",
+        )
+    if token != expected:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    rows = _cashflow_ledger_export_rows(
+        db=db,
+        deal_id=deal_id,
+        start_date=start_date,
+        end_date=end_date,
+        as_of=as_of,
+        lme_official_symbol=lme_official_symbol,
+    )
+
+    if format.lower() != "csv":
+        return rows
+
+    return Response(content=_cashflow_ledger_rows_to_csv(rows), media_type="text/csv")
 
 
 @router.get(
