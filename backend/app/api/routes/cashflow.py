@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from typing import Optional
-
-import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session

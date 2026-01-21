@@ -3,6 +3,12 @@
 # Local troubleshooting artifacts
 Logs Render.txt
 
+# Local perf/run artifacts (never commit)
+phase*_*.json
+phase*_*.txt
+latency_*.json
+latency_*.txt
+
 # Example PDFs (bank statements, screenshots, etc.)
 *.pdf
 *.PDF

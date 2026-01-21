@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -9,9 +9,96 @@ from sqlalchemy.orm import Session, selectinload
 from app import models
 from app.api.deps import require_roles
 from app.database import get_db
-from app.schemas import RfqAttemptReport, RfqExportItem, RfqReportItem
+from app.schemas.cashflow_ledger import CashflowLedgerLineRead
+from app.schemas.report_attempts import RfqAttemptReport
+from app.schemas.reports import RfqExportItem, RfqReportItem
+from app.services.cashflow_ledger_export_service import build_cashflow_ledger_lines
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+@router.get(
+    "/cashflow-ledger",
+    response_model=List[CashflowLedgerLineRead],
+    dependencies=[Depends(require_roles(models.RoleName.financeiro, models.RoleName.auditoria))],
+)
+def cashflow_ledger_export(
+    db: Session = Depends(get_db),
+    deal_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    as_of: Optional[date] = Query(None),
+    lme_official_symbol: str = Query("Q7Y00", min_length=1, max_length=16),
+    format: str = Query("json", description="json or csv"),
+):
+    as_of_date = as_of or date.today()
+    rows = build_cashflow_ledger_lines(
+        db,
+        as_of=as_of_date,
+        start_date=start_date,
+        end_date=end_date,
+        deal_id=deal_id,
+        lme_official_symbol=lme_official_symbol,
+    )
+
+    if format.lower() != "csv":
+        return rows
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "valuation_as_of_date",
+            "valuation_reference_date",
+            "deal_id",
+            "deal_uuid",
+            "entity_type",
+            "entity_id",
+            "source_reference",
+            "category",
+            "date",
+            "side",
+            "price_type",
+            "quantity_mt",
+            "unit_price_used",
+            "premium_usd_per_mt",
+            "amount_usd",
+            "amount_usd_abs",
+            "direction",
+            "lme_symbol_used",
+            "lme_price_type",
+            "lme_price_ts_date",
+            "notes",
+        ]
+    )
+    for r in rows:
+        writer.writerow(
+            [
+                r.valuation_as_of_date.isoformat(),
+                r.valuation_reference_date.isoformat(),
+                r.deal_id,
+                r.deal_uuid,
+                r.entity_type,
+                r.entity_id,
+                r.source_reference,
+                r.category,
+                r.date.isoformat(),
+                r.side,
+                r.price_type,
+                r.quantity_mt,
+                r.unit_price_used,
+                r.premium_usd_per_mt,
+                r.amount_usd,
+                r.amount_usd_abs,
+                r.direction,
+                r.lme_symbol_used,
+                r.lme_price_type,
+                r.lme_price_ts_date.isoformat() if r.lme_price_ts_date else None,
+                r.notes,
+            ]
+        )
+
+    return Response(content=output.getvalue(), media_type="text/csv")
 
 
 @router.get(

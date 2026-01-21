@@ -1,3 +1,5 @@
+# ruff: noqa: I001
+
 from fastapi import APIRouter
 
 from app.api.routes import (
@@ -28,6 +30,7 @@ from app.api.routes import (
     net_exposure,
     pnl,
     purchase_orders,
+    reports,
     rfq_ingest,
     rfq_preview,
     rfq_send,
@@ -59,6 +62,7 @@ api_router.include_router(suppliers.router)
 api_router.include_router(customers.router)
 api_router.include_router(counterparties.router)
 api_router.include_router(rfqs.router)
+api_router.include_router(reports.router)
 api_router.include_router(rfq_send.router)
 api_router.include_router(rfq_ingest.router)
 api_router.include_router(whatsapp_webhook.router)
