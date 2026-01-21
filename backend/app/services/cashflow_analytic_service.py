@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app import models
@@ -160,6 +160,7 @@ def build_cashflow_analytic_lines(
     *,
     as_of: date,
     filters: CashflowAnalyticFilters,
+    limit: int | None = None,
 ) -> list[CashFlowLineRead]:
     as_of_ts = datetime.now(timezone.utc)
     valuation_ref = as_of - timedelta(days=1)
@@ -174,8 +175,42 @@ def build_cashflow_analytic_lines(
         so_q = so_q.filter(models.SalesOrder.deal_id == int(filters.deal_id))
         po_q = po_q.filter(models.PurchaseOrder.deal_id == int(filters.deal_id))
 
-    sales_orders = so_q.order_by(models.SalesOrder.id.asc()).all()
-    purchase_orders = po_q.order_by(models.PurchaseOrder.id.asc()).all()
+    if filters.start_date is not None:
+        so_q = so_q.filter(
+            or_(
+                models.SalesOrder.expected_delivery_date >= filters.start_date,
+                models.SalesOrder.fixing_deadline >= filters.start_date,
+            )
+        )
+        po_q = po_q.filter(
+            or_(
+                models.PurchaseOrder.expected_delivery_date >= filters.start_date,
+                models.PurchaseOrder.fixing_deadline >= filters.start_date,
+            )
+        )
+    if filters.end_date is not None:
+        so_q = so_q.filter(
+            or_(
+                models.SalesOrder.expected_delivery_date <= filters.end_date,
+                models.SalesOrder.fixing_deadline <= filters.end_date,
+            )
+        )
+        po_q = po_q.filter(
+            or_(
+                models.PurchaseOrder.expected_delivery_date <= filters.end_date,
+                models.PurchaseOrder.fixing_deadline <= filters.end_date,
+            )
+        )
+
+    sql_limit = int(limit) if limit is not None and int(limit) > 0 else None
+
+    so_q = so_q.order_by(models.SalesOrder.id.asc())
+    po_q = po_q.order_by(models.PurchaseOrder.id.asc())
+    if sql_limit:
+        so_q = so_q.limit(sql_limit)
+        po_q = po_q.limit(sql_limit)
+    sales_orders = so_q.all()
+    purchase_orders = po_q.all()
 
     def _in_range(d: date) -> bool:
         if filters.start_date is not None and d < filters.start_date:
@@ -346,7 +381,10 @@ def build_cashflow_analytic_lines(
     if filters.end_date is not None:
         c_q = c_q.filter(models.Contract.settlement_date <= filters.end_date)
 
-    contracts = c_q.order_by(models.Contract.settlement_date.asc(), models.Contract.contract_id.asc()).all()
+    c_q = c_q.order_by(models.Contract.settlement_date.asc(), models.Contract.contract_id.asc())
+    if sql_limit:
+        c_q = c_q.limit(sql_limit)
+    contracts = c_q.all()
     contract_ids = [str(c.contract_id) for c in contracts]
     mtm_by_contract: dict[str, models.MtmContractSnapshot] = {}
     if contract_ids:
@@ -400,7 +438,25 @@ def build_cashflow_analytic_lines(
     e_q = db.query(models.Exposure).filter(
         models.Exposure.status.in_([models.ExposureStatus.open, models.ExposureStatus.partially_hedged])
     )
-    exposures = e_q.order_by(models.Exposure.id.asc()).all()
+    if filters.start_date is not None:
+        e_q = e_q.filter(
+            or_(
+                models.Exposure.delivery_date >= filters.start_date,
+                models.Exposure.payment_date >= filters.start_date,
+            )
+        )
+    if filters.end_date is not None:
+        e_q = e_q.filter(
+            or_(
+                models.Exposure.delivery_date <= filters.end_date,
+                models.Exposure.payment_date <= filters.end_date,
+            )
+        )
+
+    e_q = e_q.order_by(models.Exposure.id.asc())
+    if sql_limit:
+        e_q = e_q.limit(sql_limit)
+    exposures = e_q.all()
 
     # Bulk hedge quantities (avoid N+1 over HedgeExposure)
     hedged_by_exposure_id: dict[int, float] = {}
@@ -516,4 +572,6 @@ def build_cashflow_analytic_lines(
                 line.amount = abs(float(line.quantity_mt) * px)
 
     out.sort(key=lambda r: (r.date, r.cashflow_type, r.entity_type, r.entity_id))
+    if limit is not None and limit > 0:
+        return out[: int(limit)]
     return out

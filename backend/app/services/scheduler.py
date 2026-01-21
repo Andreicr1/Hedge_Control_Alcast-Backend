@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -10,11 +11,13 @@ from sqlalchemy import text
 from app import models
 from app.database import SessionLocal
 from app.services.westmetall import as_of_datetime_utc, fetch_westmetall_daily_rows
+from app.services.finance_pipeline_daily import execute_finance_pipeline_daily
 
 logger = logging.getLogger("alcast.scheduler")
 
 
 DEFAULT_DAILY_UTC_HOUR = 9  # 09:00 GMT/UTC
+DEFAULT_FINANCE_PIPELINE_UTC_HOUR = 10  # 10:00 GMT/UTC
 
 
 @dataclass(frozen=True)
@@ -179,6 +182,57 @@ class DailyJobRunner:
                 )
             except Exception as exc:
                 logger.exception("westmetall_ingest_failed", extra={"error": str(exc)})
+
+            # Finance pipeline daily snapshots (optional)
+            if str(os.getenv("FINANCE_PIPELINE_DAILY_ENABLED", "false")).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+            }:
+                db = SessionLocal()
+                lock_key = 912027  # stable key for finance pipeline daily
+                got_lock = _try_pg_advisory_lock(db, lock_key)
+                if not got_lock:
+                    logger.info("finance_pipeline_daily_skipped_locked")
+                    db.close()
+                else:
+                    try:
+                        pipeline_hour = int(
+                            os.getenv(
+                                "FINANCE_PIPELINE_DAILY_UTC_HOUR",
+                                str(DEFAULT_FINANCE_PIPELINE_UTC_HOUR),
+                            )
+                        )
+                        as_of = datetime.now(timezone.utc)
+                        # Run only after the configured UTC hour to ensure market data is ingested.
+                        if as_of.hour >= pipeline_hour:
+                            result = execute_finance_pipeline_daily(
+                                db,
+                                as_of_date=as_of.date(),
+                                pipeline_version="daily.v1",
+                                scope_filters=None,
+                                mode="materialize",
+                                emit_exports=False,
+                                requested_by_user_id=None,
+                                request_id=None,
+                            )
+                            logger.info(
+                                "finance_pipeline_daily_ok",
+                                extra={"as_of_date": as_of.date().isoformat(), "result": str(result)},
+                            )
+                        else:
+                            logger.info(
+                                "finance_pipeline_daily_skipped_hour",
+                                extra={"as_of_date": as_of.date().isoformat(), "hour": as_of.hour},
+                            )
+                    except Exception as exc:
+                        logger.exception(
+                            "finance_pipeline_daily_failed",
+                            extra={"error": str(exc)},
+                        )
+                    finally:
+                        _unlock_pg_advisory_lock(db, lock_key)
+                        db.close()
 
 
 # Singleton runner for FastAPI lifecycle

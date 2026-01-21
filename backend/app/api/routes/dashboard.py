@@ -19,7 +19,6 @@ from app import models
 from app.api.deps import get_db, require_roles
 from app.models.domain import RoleName, TimelineEvent
 from app.services.contract_mtm_service import (
-    compute_mtm_for_contract_avg,
     compute_settlement_value_for_contract_avg,
 )
 
@@ -68,7 +67,8 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
     """
 
     today = date.today()
-    max_contracts = int(os.getenv("DASHBOARD_MTM_MAX_CONTRACTS", "50"))
+    # IMPORTANT: Dashboard requests must be fast and must not materialize MTM on-demand.
+    # MTM can be expensive (reads LME price series); use snapshots only.
 
     def _snapshot_portfolio_total(day: date) -> tuple[float, int]:
         """Return (total_mtm_usd, rows_count) from snapshot table for the given day."""
@@ -83,57 +83,58 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
             .filter(models.Contract.status == models.ContractStatus.active.value)
         )
 
-        total = float(q.with_entities(func.coalesce(func.sum(models.MtmContractSnapshot.mtm_usd), 0.0)).scalar() or 0.0)
+        total = float(
+            q.with_entities(
+                func.coalesce(func.sum(models.MtmContractSnapshot.mtm_usd), 0.0)
+            ).scalar()
+            or 0.0
+        )
         count = int(q.with_entities(func.count(models.MtmContractSnapshot.id)).scalar() or 0)
         return total, count
 
-    def _fallback_sum_for_day(day: date) -> float:
-        contracts = (
-            db.query(models.Contract)
-            .filter(models.Contract.status == models.ContractStatus.active.value)
-            .order_by(models.Contract.contract_id.asc())
-            .limit(max_contracts)
-            .all()
-        )
-        total = 0.0
-        for c in contracts:
-            res = compute_mtm_for_contract_avg(db, c, as_of_date=day)
-            if res is None:
-                continue
-            total += float(res.mtm_usd)
-        return float(total)
+    def _latest_snapshot_day() -> date | None:
+        try:
+            return db.query(func.max(models.MtmContractSnapshot.as_of_date)).scalar()
+        except Exception:
+            return None
 
-    def _portfolio_total_for_day(day: date) -> float:
+    def _portfolio_total_for_day(day: date) -> tuple[float | None, int]:
         try:
             total, count = _snapshot_portfolio_total(day)
             if count > 0:
-                return float(total)
+                return float(total), int(count)
         except Exception:
             pass
-        return _fallback_sum_for_day(day)
+        return None, 0
 
-    current = _portfolio_total_for_day(today)
-    try:
-        prev_day_total = _portfolio_total_for_day(today.fromordinal(today.toordinal() - 1))
-    except Exception:
-        prev_day_total = current
+    snapshot_as_of = today
+    is_stale = False
 
-    change = float(current - prev_day_total)
-    change_percent = _pct_change(current, prev_day_total)
+    current, count = _portfolio_total_for_day(today)
+    if not count:
+        latest_day = _latest_snapshot_day()
+        if latest_day:
+            snapshot_as_of = latest_day
+            is_stale = True
+            current, count = _portfolio_total_for_day(latest_day)
 
-    try:
-        weekly_prev = _portfolio_total_for_day(today.fromordinal(today.toordinal() - 7))
-        weekly = float(current - weekly_prev)
-    except Exception:
-        weekly = 0.0
+    base_day = snapshot_as_of
+    prev_day_total, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 1))
+    weekly_prev, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 7))
+    monthly_prev, _ = _portfolio_total_for_day(base_day.fromordinal(base_day.toordinal() - 30))
 
-    try:
-        monthly_prev = _portfolio_total_for_day(today.fromordinal(today.toordinal() - 30))
-        monthly = float(current - monthly_prev)
-    except Exception:
-        monthly = 0.0
+    if current is None:
+        current = 0.0
+        prev_day_total = None
+
+    change = float(current - (prev_day_total or current))
+    change_percent = _pct_change(current, prev_day_total or current)
+    weekly = float(current - weekly_prev) if weekly_prev is not None else 0.0
+    monthly = float(current - monthly_prev) if monthly_prev is not None else 0.0
 
     period_label = f"Última atualização: {_iso(datetime.utcnow())}"
+    if is_stale:
+        period_label = f"Snapshot MTM stale ({snapshot_as_of.isoformat()}) · {_iso(datetime.utcnow())}"
 
     return {
         "value": current,
@@ -141,6 +142,8 @@ def _build_mtm_widget(db: Session) -> dict[str, Any]:
         "change": change,
         "changePercent": change_percent,
         "status": _status_from_value(change),
+        "is_stale": bool(is_stale),
+        "snapshot_as_of": snapshot_as_of.isoformat() if snapshot_as_of else None,
         "indicators": {
             "dailyPnL": change,
             "weeklyPnL": weekly,
@@ -161,11 +164,35 @@ def _build_settlements_widget(db: Session) -> dict[str, Any]:
         .all()
     )
 
+    contract_ids = [str(c.contract_id) for c in contracts if c.contract_id]
+    baseline_by_contract: dict[str, models.CashflowBaselineItem] = {}
+    if contract_ids:
+        for row in (
+            db.query(models.CashflowBaselineItem)
+            .filter(models.CashflowBaselineItem.contract_id.in_(contract_ids))
+            .filter(models.CashflowBaselineItem.as_of_date == today)
+            .filter(models.CashflowBaselineItem.currency == "USD")
+            .all()
+        ):
+            baseline_by_contract[str(row.contract_id)] = row
+
     total = 0.0
     breakdown_map: dict[str, float] = {}
+    allow_legacy = str(os.getenv("DASHBOARD_SETTLEMENTS_ALLOW_LEGACY", "false")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
     for c in contracts:
-        val = compute_settlement_value_for_contract_avg(db, c)
-        amt = float(val.mtm_usd) if val is not None else 0.0
+        baseline = baseline_by_contract.get(str(c.contract_id))
+        if baseline is not None and baseline.final_value_usd is not None:
+            amt = float(baseline.final_value_usd)
+        elif allow_legacy:
+            val = compute_settlement_value_for_contract_avg(db, c)
+            amt = float(val.mtm_usd) if val is not None else 0.0
+        else:
+            amt = 0.0
         total += amt
         label = c.counterparty.name if c.counterparty else "Contraparte"
         breakdown_map[label] = float(breakdown_map.get(label, 0.0) + amt)
@@ -257,6 +284,24 @@ def _build_dashboard_contracts(db: Session, limit: int = 10) -> list[dict[str, A
         .all()
     )
 
+    # Prefer MTM snapshots (fast). Avoid per-contract MTM computation on request path.
+    contract_ids: list[str] = [str(c.contract_id) for c in contracts if c.contract_id is not None]
+    mtm_by_contract_id: dict[str, float] = {}
+    if contract_ids:
+        rows = (
+            db.query(models.MtmContractSnapshot)
+            .filter(models.MtmContractSnapshot.contract_id.in_(contract_ids))
+            .filter(models.MtmContractSnapshot.as_of_date == today)
+            .filter(models.MtmContractSnapshot.currency == "USD")
+            .order_by(desc(models.MtmContractSnapshot.id))
+            .all()
+        )
+        # Keep the newest snapshot row per contract.
+        for s in rows:
+            cid = str(s.contract_id)
+            if cid not in mtm_by_contract_id:
+                mtm_by_contract_id[cid] = float(s.mtm_usd or 0.0)
+
     out: list[dict[str, Any]] = []
     for c in contracts:
         rfq = c.rfq
@@ -266,10 +311,7 @@ def _build_dashboard_contracts(db: Session, limit: int = 10) -> list[dict[str, A
         maturity = c.settlement_date.isoformat() if c.settlement_date else ""
         rate, notional = _extract_fixed_rate_and_notional(c)
 
-        mtm = 0.0
-        res = compute_mtm_for_contract_avg(db, c, as_of_date=today)
-        if res is not None:
-            mtm = float(res.mtm_usd)
+        mtm = float(mtm_by_contract_id.get(str(c.contract_id), 0.0)) if c.contract_id else 0.0
 
         out.append(
             {

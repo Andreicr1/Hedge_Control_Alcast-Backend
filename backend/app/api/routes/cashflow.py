@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models
@@ -33,6 +35,11 @@ _CONTRACT_ID_Q = Query(None)
 _COUNTERPARTY_ID_Q = Query(None)
 _DEAL_ID_Q = Query(None)
 _LIMIT_Q = Query(200, ge=1, le=1000)
+_ANALYTIC_LIMIT_Q = Query(
+    int(os.getenv("CASHFLOW_ANALYTIC_MAX_ROWS", "2000")),
+    ge=1,
+    le=10000,
+)
 
 
 @router.get(
@@ -90,15 +97,21 @@ def get_cashflow_analytic(
     end_date: Optional[date] = _END_DATE_Q,
     as_of: Optional[date] = _AS_OF_Q,
     deal_id: Optional[int] = _DEAL_ID_Q,
+    limit: int = _ANALYTIC_LIMIT_Q,
     db: Session = _DB_DEP,
 ):
+    if start_date is None and end_date is None and deal_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="cashflow/analytic requires date window or deal_id",
+        )
     as_of_date = as_of or date.today()
     filters = CashflowAnalyticFilters(
         start_date=start_date,
         end_date=end_date,
         deal_id=deal_id,
     )
-    return build_cashflow_analytic_lines(db, as_of=as_of_date, filters=filters)
+    return build_cashflow_analytic_lines(db, as_of=as_of_date, filters=filters, limit=limit)
 
 
 @router.post(

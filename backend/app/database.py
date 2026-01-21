@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -54,6 +54,13 @@ Base = declarative_base()
 def get_db():
     db = SessionLocal()
     try:
+        if is_postgres:
+            timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "5000"))
+            if timeout_ms > 0:
+                try:
+                    db.execute(text(f"SET statement_timeout = {timeout_ms}"))
+                except Exception:
+                    pass
         yield db
     finally:
         db.close()

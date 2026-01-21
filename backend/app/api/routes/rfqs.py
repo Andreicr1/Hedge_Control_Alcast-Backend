@@ -1,13 +1,14 @@
 # ruff: noqa: B008, E501
 
 import logging
+import os
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from sqlalchemy import func
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, noload, selectinload
 
 from app import models
 from app.api.deps import require_roles
@@ -192,20 +193,46 @@ def _group_trades(quotes: list[models.RfqQuote]) -> list[dict]:
 
 @router.get("", response_model=List[RfqRead])
 def list_rfqs(
+    limit: int = Query(int(os.getenv("RFQS_LIST_DEFAULT_LIMIT", "50")), ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    expand: str | None = Query(None, description="Expand: quotes,invitations"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
         require_roles(models.RoleName.financeiro, models.RoleName.auditoria)
     ),
 ):
-    return (
-        db.query(models.Rfq)
-        .options(
-            selectinload(models.Rfq.counterparty_quotes),
-            selectinload(models.Rfq.invitations),
-        )
-        .order_by(models.Rfq.created_at.desc())
+    """List RFQs with pagination.
+
+    Default payload excludes quotes and invitations. Use ?expand=quotes,invitations
+    to include them.
+    """
+    max_limit = int(os.getenv("RFQS_LIST_MAX_LIMIT", "200"))
+    safe_limit = min(int(limit), max_limit)
+
+    env_default_expand = os.getenv("RFQS_LIST_DEFAULT_EXPAND", "")
+    expand_value = ",".join([v for v in [env_default_expand, expand or ""] if v])
+    expand_set = {e.strip().lower() for e in expand_value.split(",") if e.strip()}
+    include_quotes = "quotes" in expand_set
+    include_invitations = "invitations" in expand_set
+
+    q = db.query(models.Rfq).options(
+        noload(models.Rfq.counterparty_quotes),
+        noload(models.Rfq.invitations),
+    )
+
+    if include_quotes:
+        q = q.options(selectinload(models.Rfq.counterparty_quotes))
+    if include_invitations:
+        q = q.options(selectinload(models.Rfq.invitations))
+
+    rfqs = (
+        q.order_by(models.Rfq.created_at.desc())
+        .offset(int(offset))
+        .limit(safe_limit)
         .all()
     )
+
+    return rfqs
 
 
 @router.post("", response_model=RfqRead, status_code=status.HTTP_201_CREATED)
