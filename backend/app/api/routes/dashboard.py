@@ -39,6 +39,7 @@ _DASHBOARD_CACHE_ENABLED = str(os.getenv("DASHBOARD_CACHE_ENABLED", "true")).low
 _DASHBOARD_CACHE_TTL_SECONDS = 10
 _DASHBOARD_CACHE_LOCK = Lock()
 _DASHBOARD_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_DASHBOARD_CACHE_LOCKS: dict[str, Lock] = {}
 
 
 def _dashboard_cache_key(current_user: models.User) -> str:
@@ -55,24 +56,33 @@ def _dashboard_cache_key(current_user: models.User) -> str:
     return f"dashboard:summary:{role}:{user_id}:{as_of}:{include_settlements}"
 
 
-def _dashboard_cache_get(cache_key: str) -> tuple[dict[str, Any] | None, int]:
+def _dashboard_cache_get(cache_key: str) -> tuple[dict[str, Any] | None, int, bool]:
     now = time.monotonic()
     with _DASHBOARD_CACHE_LOCK:
         cached = _DASHBOARD_CACHE.get(cache_key)
         if not cached:
-            return None, 0
+            return None, 0, False
         expires_at, payload = cached
         if expires_at <= now:
-            _DASHBOARD_CACHE.pop(cache_key, None)
-            return None, 0
+            remaining_ms = 0
+            return deepcopy(payload), remaining_ms, True
         remaining_ms = max(0, int((expires_at - now) * 1000))
-        return deepcopy(payload), remaining_ms
+        return deepcopy(payload), remaining_ms, False
 
 
 def _dashboard_cache_set(cache_key: str, payload: dict[str, Any]) -> None:
     expires_at = time.monotonic() + _DASHBOARD_CACHE_TTL_SECONDS
     with _DASHBOARD_CACHE_LOCK:
         _DASHBOARD_CACHE[cache_key] = (expires_at, deepcopy(payload))
+
+
+def _dashboard_cache_lock_for_key(cache_key: str) -> Lock:
+    with _DASHBOARD_CACHE_LOCK:
+        lock = _DASHBOARD_CACHE_LOCKS.get(cache_key)
+        if lock is None:
+            lock = Lock()
+            _DASHBOARD_CACHE_LOCKS[cache_key] = lock
+        return lock
 
 
 def _iso(dt: datetime | None) -> str:
@@ -470,85 +480,119 @@ def get_dashboard_summary(
             return fallback, True
 
     cache_key = _dashboard_cache_key(current_user)
+    cache_lock = _dashboard_cache_lock_for_key(cache_key) if _DASHBOARD_CACHE_ENABLED else None
+    cache_lock_acquired = False
+    cached = None
+    ttl_ms = 0
+    is_stale = False
     if _DASHBOARD_CACHE_ENABLED:
-        cached, ttl_ms = _dashboard_cache_get(cache_key)
-        if cached is not None:
+        cached, ttl_ms, is_stale = _dashboard_cache_get(cache_key)
+        if cached is not None and not is_stale:
             logger.info(
                 "dashboard_cache",
                 extra={
                     "dashboard_cache_hit": True,
                     "dashboard_cache_ttl_remaining_ms": ttl_ms,
+                    "dashboard_cache_stale": False,
+                    "dashboard_cache_refresh_inflight": False,
                 },
             )
             return cached
 
-    mtm, mtm_failed = _safe_call(
-        "mtm",
-        lambda: _build_mtm_widget(db),
-        {
-            "value": 0.0,
-            "currency": "USD",
-            "change": 0.0,
-            "changePercent": 0.0,
-            "status": "neutral",
-            "is_stale": True,
-            "snapshot_missing": True,
-            "snapshot_as_of": None,
-            "indicators": {"dailyPnL": 0.0, "weeklyPnL": 0.0, "monthlyPnL": 0.0},
-            "period": f"Snapshot MTM missing · {_iso(datetime.utcnow())}",
-        },
-    )
-    settlements, settlements_failed = _safe_call(
-        "settlements",
-        lambda: _build_settlements_widget(db),
-        {
-            "total": 0.0,
-            "currency": "USD",
-            "count": 0,
-            "breakdown": [],
-            "status": "neutral",
-            "period": "Hoje",
-        },
-    )
-    rfqs, rfqs_failed = _safe_call("rfqs", lambda: _build_dashboard_rfqs(db), [])
-    contracts, contracts_failed = _safe_call("contracts", lambda: _build_dashboard_contracts(db), [])
-    timeline, timeline_failed = _safe_call(
-        "timeline",
-        lambda: _build_dashboard_timeline(db, current_user=current_user),
-        [],
-    )
+        if cache_lock is not None:
+            cache_lock_acquired = cache_lock.acquire(blocking=False)
+            if not cache_lock_acquired:
+                if cached is not None:
+                    logger.info(
+                        "dashboard_cache",
+                        extra={
+                            "dashboard_cache_hit": True,
+                            "dashboard_cache_ttl_remaining_ms": 0,
+                            "dashboard_cache_stale": True,
+                            "dashboard_cache_refresh_inflight": True,
+                        },
+                    )
+                    return cached
+                cache_lock.acquire()
+                cache_lock_acquired = True
 
-    response = {
-        "mtm": mtm,
-        "settlements": settlements,
-        "rfqs": rfqs,
-        "contracts": contracts,
-        "timeline": timeline,
-        "lastUpdated": _iso(datetime.utcnow()),
-    }
-
-    had_failure = any(
-        [
-            mtm_failed,
-            settlements_failed,
-            rfqs_failed,
-            contracts_failed,
-            timeline_failed,
-        ]
-    )
-
-    if _DASHBOARD_CACHE_ENABLED:
-        logger.info(
-            "dashboard_cache",
-            extra={
-                "dashboard_cache_hit": False,
-                "dashboard_cache_ttl_remaining_ms": 0,
+    try:
+        mtm, mtm_failed = _safe_call(
+            "mtm",
+            lambda: _build_mtm_widget(db),
+            {
+                "value": 0.0,
+                "currency": "USD",
+                "change": 0.0,
+                "changePercent": 0.0,
+                "status": "neutral",
+                "is_stale": True,
+                "snapshot_missing": True,
+                "snapshot_as_of": None,
+                "indicators": {"dailyPnL": 0.0, "weeklyPnL": 0.0, "monthlyPnL": 0.0},
+                "period": f"Snapshot MTM missing · {_iso(datetime.utcnow())}",
             },
         )
-        if not had_failure:
-            _dashboard_cache_set(cache_key, response)
+        settlements, settlements_failed = _safe_call(
+            "settlements",
+            lambda: _build_settlements_widget(db),
+            {
+                "total": 0.0,
+                "currency": "USD",
+                "count": 0,
+                "breakdown": [],
+                "status": "neutral",
+                "period": "Hoje",
+            },
+        )
+        rfqs, rfqs_failed = _safe_call("rfqs", lambda: _build_dashboard_rfqs(db), [])
+        contracts, contracts_failed = _safe_call(
+            "contracts",
+            lambda: _build_dashboard_contracts(db),
+            [],
+        )
+        timeline, timeline_failed = _safe_call(
+            "timeline",
+            lambda: _build_dashboard_timeline(db, current_user=current_user),
+            [],
+        )
 
-    return response
+        response = {
+            "mtm": mtm,
+            "settlements": settlements,
+            "rfqs": rfqs,
+            "contracts": contracts,
+            "timeline": timeline,
+            "lastUpdated": _iso(datetime.utcnow()),
+        }
+
+        had_failure = any(
+            [
+                mtm_failed,
+                settlements_failed,
+                rfqs_failed,
+                contracts_failed,
+                timeline_failed,
+            ]
+        )
+
+        if _DASHBOARD_CACHE_ENABLED:
+            logger.info(
+                "dashboard_cache",
+                extra={
+                    "dashboard_cache_hit": False,
+                    "dashboard_cache_ttl_remaining_ms": 0,
+                    "dashboard_cache_stale": False,
+                    "dashboard_cache_refresh_inflight": False,
+                },
+            )
+            if not had_failure:
+                _dashboard_cache_set(cache_key, response)
+
+        return response
+    finally:
+        if cache_lock_acquired and cache_lock is not None:
+            cache_lock.release()
 
 
 @router.get("/mtm")
