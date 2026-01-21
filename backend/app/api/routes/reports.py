@@ -1,9 +1,10 @@
 import csv
 import io
+import secrets
 from datetime import date, datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session, selectinload
 
 from app import models
@@ -16,6 +17,21 @@ from app.schemas.reports import RfqExportItem, RfqReportItem
 from app.services.cashflow_ledger_export_service import build_cashflow_ledger_lines
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    s = str(authorization).strip()
+    if not s:
+        return None
+    parts = s.split(" ", 1)
+    if len(parts) != 2:
+        return None
+    scheme, value = parts[0].strip(), parts[1].strip()
+    if scheme.lower() != "bearer":
+        return None
+    return value or None
 
 
 def _cashflow_ledger_export_rows(
@@ -130,7 +146,12 @@ def cashflow_ledger_export(
     response_model=List[CashflowLedgerLineRead],
 )
 def cashflow_ledger_export_public(
-    token: str = Query(..., min_length=8, description="Service token for BI refresh"),
+    token: Optional[str] = Query(
+        None,
+        min_length=8,
+        description="Service token for BI refresh (query param fallback; prefer Authorization: Bearer)",
+    ),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
     deal_id: Optional[int] = Query(None),
     start_date: Optional[date] = Query(None),
@@ -145,7 +166,11 @@ def cashflow_ledger_export_public(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Public reports are not configured",
         )
-    if token != expected:
+
+    provided = _extract_bearer_token(authorization) or (token or "").strip() or None
+    if not provided:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+    if not secrets.compare_digest(provided, expected):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     rows = _cashflow_ledger_export_rows(

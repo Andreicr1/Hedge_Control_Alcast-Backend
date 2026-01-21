@@ -5,6 +5,7 @@ import os
 os.environ.setdefault("SECRET_KEY", "test-secret-key-1234567890")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("REPORTS_PUBLIC_TOKEN", "public-token-12345678")
 
 from datetime import datetime, timezone
 
@@ -184,3 +185,27 @@ def test_cashflow_ledger_export_csv_returns_csv_content_type():
     assert r.status_code == 200
     assert r.headers.get("content-type", "").startswith("text/csv")
     assert "entity_type" in r.text
+
+
+def test_cashflow_ledger_public_accepts_bearer_token():
+    _seed_ledger_data()
+
+    r = client.get(
+        "/api/reports/cashflow-ledger-public",
+        params={"as_of": "2025-01-15"},
+        headers={"Authorization": "Bearer public-token-12345678"},
+    )
+    assert r.status_code == 200
+    lines = r.json()
+    assert isinstance(lines, list)
+    assert any(x["entity_type"] == "so" for x in lines)
+
+
+def test_cashflow_ledger_public_accepts_query_token_fallback():
+    _seed_ledger_data()
+
+    r = client.get(
+        "/api/reports/cashflow-ledger-public",
+        params={"as_of": "2025-01-15", "token": "public-token-12345678"},
+    )
+    assert r.status_code == 200
