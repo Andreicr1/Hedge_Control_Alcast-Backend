@@ -52,7 +52,7 @@ services:
       - key: EXPOSURES_QUEUE_TIMEOUT_MS
         value: "1000"
       - key: DASHBOARD_CIRCUIT_BREAKER_ENABLED
-        value: "false"
+        value: "true"
       - key: DASHBOARD_CB_WINDOW
         value: "20"
       - key: DASHBOARD_CB_FAILURE_THRESHOLD
