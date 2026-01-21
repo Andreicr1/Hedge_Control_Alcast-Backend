@@ -85,5 +85,18 @@ else
   echo "[startup] Migrations disabled (set RUN_MIGRATIONS_ON_START=true to enable)."
 fi
 
+WORKERS_VALUE="${UVICORN_WORKERS:-${WEB_CONCURRENCY:-1}}"
+KEEP_ALIVE_VALUE="${UVICORN_TIMEOUT_KEEP_ALIVE:-10}"
+
 echo "[startup] Starting API on port ${PORT_VALUE}"
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT_VALUE}"
+echo "[startup] Uvicorn workers=${WORKERS_VALUE} keep-alive=${KEEP_ALIVE_VALUE}s"
+
+UVICORN_ARGS="--host 0.0.0.0 --port ${PORT_VALUE}"
+if [ "${WORKERS_VALUE}" -gt 1 ]; then
+  UVICORN_ARGS="${UVICORN_ARGS} --workers ${WORKERS_VALUE}"
+fi
+if [ -n "${KEEP_ALIVE_VALUE}" ]; then
+  UVICORN_ARGS="${UVICORN_ARGS} --timeout-keep-alive ${KEEP_ALIVE_VALUE}"
+fi
+
+exec uvicorn app.main:app ${UVICORN_ARGS}

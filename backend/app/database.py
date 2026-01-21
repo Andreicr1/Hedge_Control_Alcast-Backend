@@ -20,6 +20,13 @@ def _env_bool(key: str, default: str = "false") -> bool:
 
 
 engine_kwargs: dict = {"future": True, "connect_args": connect_args}
+POOL_CONFIG: dict[str, int | str | None] = {
+    "pool_size": None,
+    "max_overflow": None,
+    "pool_timeout": None,
+    "pool_recycle": None,
+    "use_null_pool": None,
+}
 
 if is_postgres:
     # Keep connections healthy across transient pooler/network glitches.
@@ -38,12 +45,30 @@ if is_postgres:
     # For transaction poolers / serverless-style environments, disable pooling.
     if _env_bool("DB_USE_NULL_POOL", "false"):
         engine_kwargs["poolclass"] = NullPool
+        POOL_CONFIG.update(
+            {
+                "pool_size": None,
+                "max_overflow": None,
+                "pool_timeout": None,
+                "pool_recycle": None,
+                "use_null_pool": "true",
+            }
+        )
     else:
         engine_kwargs.update(
             pool_size=pool_size,
             max_overflow=max_overflow,
             pool_timeout=pool_timeout,
             pool_recycle=pool_recycle,
+        )
+        POOL_CONFIG.update(
+            {
+                "pool_size": pool_size,
+                "max_overflow": max_overflow,
+                "pool_timeout": pool_timeout,
+                "pool_recycle": pool_recycle,
+                "use_null_pool": "false",
+            }
         )
 
 engine = create_engine(db_url, **engine_kwargs)

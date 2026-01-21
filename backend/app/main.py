@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
@@ -15,7 +16,7 @@ from app.core.observability import (
     utc_now_iso,
 )
 from app.services.scheduler import runner as daily_runner
-from app.database import SessionLocal
+from app.database import POOL_CONFIG, SessionLocal, engine
 from app.services.auth import hash_password
 from app import models
 
@@ -199,6 +200,25 @@ def _seed_dev_users() -> None:
 
 @app.on_event("startup")
 def _startup_scheduler():
+    try:
+        pool_status = None
+        try:
+            pool_status = engine.pool.status()
+        except Exception:
+            pool_status = None
+
+        logger.info(
+            "runtime_config",
+            extra={
+                "pid": os.getpid(),
+                "web_concurrency": os.getenv("WEB_CONCURRENCY"),
+                "uvicorn_workers": os.getenv("UVICORN_WORKERS"),
+                "db_pool": POOL_CONFIG,
+                "db_pool_status": pool_status,
+            },
+        )
+    except Exception:
+        pass
     _seed_dev_users()
     # Avoid running background threads in test context by default.
     if (settings.environment or "").lower() == "test":
