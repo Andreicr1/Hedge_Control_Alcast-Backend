@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import os
 import logging
+import time
+from copy import deepcopy
 from datetime import date, datetime
+from threading import Lock
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -25,6 +28,51 @@ from app.services.contract_mtm_service import (
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 logger = logging.getLogger("alcast.dashboard")
+
+_DASHBOARD_CACHE_ENABLED = str(os.getenv("DASHBOARD_CACHE_ENABLED", "true")).lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
+_DASHBOARD_CACHE_TTL_SECONDS = 10
+_DASHBOARD_CACHE_LOCK = Lock()
+_DASHBOARD_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
+def _dashboard_cache_key(current_user: models.User) -> str:
+    role = None
+    if current_user.role and current_user.role.name is not None:
+        role = (
+            current_user.role.name.value
+            if hasattr(current_user.role.name, "value")
+            else str(current_user.role.name)
+        )
+    user_id = getattr(current_user, "id", None)
+    as_of = datetime.utcnow().date().isoformat()
+    include_settlements = "true"
+    return f"dashboard:summary:{role}:{user_id}:{as_of}:{include_settlements}"
+
+
+def _dashboard_cache_get(cache_key: str) -> tuple[dict[str, Any] | None, int]:
+    now = time.monotonic()
+    with _DASHBOARD_CACHE_LOCK:
+        cached = _DASHBOARD_CACHE.get(cache_key)
+        if not cached:
+            return None, 0
+        expires_at, payload = cached
+        if expires_at <= now:
+            _DASHBOARD_CACHE.pop(cache_key, None)
+            return None, 0
+        remaining_ms = max(0, int((expires_at - now) * 1000))
+        return deepcopy(payload), remaining_ms
+
+
+def _dashboard_cache_set(cache_key: str, payload: dict[str, Any]) -> None:
+    expires_at = time.monotonic() + _DASHBOARD_CACHE_TTL_SECONDS
+    with _DASHBOARD_CACHE_LOCK:
+        _DASHBOARD_CACHE[cache_key] = (expires_at, deepcopy(payload))
 
 
 def _iso(dt: datetime | None) -> str:
@@ -416,49 +464,91 @@ def get_dashboard_summary(
     """
     def _safe_call(label: str, func, fallback):
         try:
-            return func()
+            return func(), False
         except Exception as exc:  # noqa: BLE001
             logger.exception("dashboard_summary_failed", extra={"section": label, "error": str(exc)})
-            return fallback
+            return fallback, True
 
-    return {
-        "mtm": _safe_call(
-            "mtm",
-            lambda: _build_mtm_widget(db),
-            {
-                "value": 0.0,
-                "currency": "USD",
-                "change": 0.0,
-                "changePercent": 0.0,
-                "status": "neutral",
-                "is_stale": True,
-                "snapshot_missing": True,
-                "snapshot_as_of": None,
-                "indicators": {"dailyPnL": 0.0, "weeklyPnL": 0.0, "monthlyPnL": 0.0},
-                "period": f"Snapshot MTM missing · {_iso(datetime.utcnow())}",
-            },
-        ),
-        "settlements": _safe_call(
-            "settlements",
-            lambda: _build_settlements_widget(db),
-            {
-                "total": 0.0,
-                "currency": "USD",
-                "count": 0,
-                "breakdown": [],
-                "status": "neutral",
-                "period": "Hoje",
-            },
-        ),
-        "rfqs": _safe_call("rfqs", lambda: _build_dashboard_rfqs(db), []),
-        "contracts": _safe_call("contracts", lambda: _build_dashboard_contracts(db), []),
-        "timeline": _safe_call(
-            "timeline",
-            lambda: _build_dashboard_timeline(db, current_user=current_user),
-            [],
-        ),
+    cache_key = _dashboard_cache_key(current_user)
+    if _DASHBOARD_CACHE_ENABLED:
+        cached, ttl_ms = _dashboard_cache_get(cache_key)
+        if cached is not None:
+            logger.info(
+                "dashboard_cache",
+                extra={
+                    "dashboard_cache_hit": True,
+                    "dashboard_cache_ttl_remaining_ms": ttl_ms,
+                },
+            )
+            return cached
+
+    mtm, mtm_failed = _safe_call(
+        "mtm",
+        lambda: _build_mtm_widget(db),
+        {
+            "value": 0.0,
+            "currency": "USD",
+            "change": 0.0,
+            "changePercent": 0.0,
+            "status": "neutral",
+            "is_stale": True,
+            "snapshot_missing": True,
+            "snapshot_as_of": None,
+            "indicators": {"dailyPnL": 0.0, "weeklyPnL": 0.0, "monthlyPnL": 0.0},
+            "period": f"Snapshot MTM missing · {_iso(datetime.utcnow())}",
+        },
+    )
+    settlements, settlements_failed = _safe_call(
+        "settlements",
+        lambda: _build_settlements_widget(db),
+        {
+            "total": 0.0,
+            "currency": "USD",
+            "count": 0,
+            "breakdown": [],
+            "status": "neutral",
+            "period": "Hoje",
+        },
+    )
+    rfqs, rfqs_failed = _safe_call("rfqs", lambda: _build_dashboard_rfqs(db), [])
+    contracts, contracts_failed = _safe_call("contracts", lambda: _build_dashboard_contracts(db), [])
+    timeline, timeline_failed = _safe_call(
+        "timeline",
+        lambda: _build_dashboard_timeline(db, current_user=current_user),
+        [],
+    )
+
+    response = {
+        "mtm": mtm,
+        "settlements": settlements,
+        "rfqs": rfqs,
+        "contracts": contracts,
+        "timeline": timeline,
         "lastUpdated": _iso(datetime.utcnow()),
     }
+
+    had_failure = any(
+        [
+            mtm_failed,
+            settlements_failed,
+            rfqs_failed,
+            contracts_failed,
+            timeline_failed,
+        ]
+    )
+
+    if _DASHBOARD_CACHE_ENABLED:
+        logger.info(
+            "dashboard_cache",
+            extra={
+                "dashboard_cache_hit": False,
+                "dashboard_cache_ttl_remaining_ms": 0,
+            },
+        )
+        if not had_failure:
+            _dashboard_cache_set(cache_key, response)
+
+    return response
 
 
 @router.get("/mtm")

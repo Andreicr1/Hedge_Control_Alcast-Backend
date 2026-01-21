@@ -61,6 +61,8 @@ services:
         value: "20"
       - key: SLOW_REQUEST_MS
         value: "2000"
+      - key: DASHBOARD_CACHE_ENABLED
+        value: "true"
       - key: SCHEDULER_ENABLED
         value: "false"
       - key: RUN_MIGRATIONS_ON_START
