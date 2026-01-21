@@ -36,7 +36,7 @@ services:
       - key: DB_STATEMENT_TIMEOUT_MS
         value: "5000"
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "3"
       - key: UVICORN_TIMEOUT_KEEP_ALIVE
         value: "10"
       - key: CONCURRENCY_LIMITS_ENABLED
@@ -44,15 +44,15 @@ services:
       - key: CONCURRENCY_QUEUE_LOG_MS
         value: "50"
       - key: DASHBOARD_CONCURRENCY_LIMIT
-        value: "2"
-      - key: DASHBOARD_QUEUE_TIMEOUT_MS
-        value: "200"
-      - key: EXPOSURES_CONCURRENCY_LIMIT
         value: "4"
+      - key: DASHBOARD_QUEUE_TIMEOUT_MS
+        value: "1000"
+      - key: EXPOSURES_CONCURRENCY_LIMIT
+        value: "6"
       - key: EXPOSURES_QUEUE_TIMEOUT_MS
-        value: "200"
+        value: "1000"
       - key: DASHBOARD_CIRCUIT_BREAKER_ENABLED
-        value: "true"
+        value: "false"
       - key: DASHBOARD_CB_WINDOW
         value: "20"
       - key: DASHBOARD_CB_FAILURE_THRESHOLD
