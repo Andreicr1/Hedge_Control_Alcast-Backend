@@ -72,4 +72,5 @@ services:
       # Secrets (set in Render UI):
       # - DATABASE_URL
       # - SECRET_KEY
+      # - REPORTS_PUBLIC_TOKEN (for Power BI scheduled refresh via /api/reports/cashflow-ledger-public)
       # - (optional override) CORS_ORIGINS
