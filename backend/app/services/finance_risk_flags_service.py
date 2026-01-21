@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -83,6 +83,7 @@ def ensure_finance_risk_flags_run(
         scope_filters=plan.filters,
         inputs_hash=plan.inputs_hash,
         requested_by_user_id=requested_by_user_id,
+        created_at=datetime.now(timezone.utc),
     )
     db.add(run)
     try:
@@ -204,6 +205,7 @@ def execute_finance_risk_flags_run(
                 message=None,
                 references=ref,
                 inputs_hash=plan.inputs_hash,
+                created_at=datetime.now(timezone.utc),
             )
             db.add(row)
             db.flush()
