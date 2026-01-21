@@ -152,6 +152,7 @@ def cashflow_ledger_export_public(
         description="Service token for BI refresh (query param fallback; prefer Authorization: Bearer)",
     ),
     authorization: Optional[str] = Header(None, alias="Authorization"),
+    x_reports_token: Optional[str] = Header(None, alias="X-Reports-Token"),
     db: Session = Depends(get_db),
     deal_id: Optional[int] = Query(None),
     start_date: Optional[date] = Query(None),
@@ -167,7 +168,12 @@ def cashflow_ledger_export_public(
             detail="Public reports are not configured",
         )
 
-    provided = _extract_bearer_token(authorization) or (token or "").strip() or None
+    provided = (
+        (x_reports_token or "").strip()
+        or _extract_bearer_token(authorization)
+        or (token or "").strip()
+        or None
+    )
     if not provided:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
     if not secrets.compare_digest(provided, expected):

@@ -209,3 +209,14 @@ def test_cashflow_ledger_public_accepts_query_token_fallback():
         params={"as_of": "2025-01-15", "token": "public-token-12345678"},
     )
     assert r.status_code == 200
+
+
+def test_cashflow_ledger_public_accepts_x_reports_token_header():
+    _seed_ledger_data()
+
+    r = client.get(
+        "/api/reports/cashflow-ledger-public",
+        params={"as_of": "2025-01-15"},
+        headers={"X-Reports-Token": "public-token-12345678"},
+    )
+    assert r.status_code == 200
