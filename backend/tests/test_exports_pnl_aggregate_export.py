@@ -138,7 +138,7 @@ def test_exports_pnl_aggregate_csv_is_downloadable_and_deterministic(_temp_stora
 
 
 def test_exports_pnl_aggregate_denies_vendas(_temp_storage_dir):
-    client, _SessionLocal, _role = _make_env(models.RoleName.vendas)
+    client, _SessionLocal, _role = _make_env(models.RoleName.comercial)
 
     r = client.post("/api/exports",
         json={

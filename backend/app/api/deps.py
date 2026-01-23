@@ -1,3 +1,4 @@
+import uuid
 from typing import Callable, Optional
 
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -5,9 +6,14 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.entra_jwt import (
+    EntraTokenValidationError,
+    EntraValidationSettings,
+    decode_and_validate_entra_access_token,
+)
 from app.database import get_db
 from app.models import RoleName, User
-from app.services.auth import decode_access_token
+from app.services.auth import decode_access_token, hash_password
 
 
 def _token_url() -> str:
@@ -25,7 +31,152 @@ _TOKEN_DEP = Depends(oauth2_scheme)
 _TOKEN_OPT_DEP = Depends(oauth2_optional)
 
 
+def _entra_cfg() -> EntraValidationSettings:
+    return EntraValidationSettings(
+        tenant_id=str(settings.entra_tenant_id or "").strip(),
+        audience=str(settings.entra_audience or "").strip(),
+        issuer=str(settings.entra_issuer or "").strip(),
+        jwks_url=str(settings.entra_jwks_url or "").strip(),
+    )
+
+
+def _extract_entra_email(claims: dict) -> Optional[str]:
+    # Common delegated token claims for internal users.
+    for key in ("preferred_username", "upn", "email"):
+        val = claims.get(key)
+        if isinstance(val, str) and "@" in val:
+            return val.strip().lower()
+    return None
+
+
+def _map_entra_roles_to_role_name(roles_claim: object) -> Optional[RoleName]:
+    if roles_claim is None:
+        return None
+
+    roles: list[str]
+    if isinstance(roles_claim, str):
+        roles = [roles_claim]
+    elif isinstance(roles_claim, list):
+        roles = [str(r) for r in roles_claim if r is not None]
+    else:
+        roles = [str(roles_claim)]
+
+    normalized = {str(r).strip().lower() for r in roles if str(r).strip()}
+
+    # Back-compat aliases (during transition)
+    if "compras" in normalized or "vendas" in normalized:
+        normalized.add("comercial")
+
+    # Priority: admin > financeiro > comercial > auditoria > estoque
+    if "admin" in normalized:
+        return RoleName.admin
+    if "financeiro" in normalized:
+        return RoleName.financeiro
+    if "comercial" in normalized:
+        return RoleName.comercial
+    if "auditoria" in normalized:
+        return RoleName.auditoria
+    if "estoque" in normalized:
+        return RoleName.estoque
+
+    return None
+
+
+def _ensure_role_row(db: Session, role_name: RoleName) -> int:
+    from app.models import Role
+
+    role = db.query(Role).filter(Role.name == role_name).first()
+    if role:
+        return int(role.id)
+
+    role = Role(name=role_name, description=str(role_name.value))
+    db.add(role)
+    db.flush()
+    return int(role.id)
+
+
+def _get_or_create_user_from_entra_claims(db: Session, claims: dict) -> User:
+    email = _extract_entra_email(claims)
+    if not email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    role_name = _map_entra_roles_to_role_name(claims.get("roles"))
+    if not role_name:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    user = db.query(User).filter(User.email == email).first()
+    desired_role_id = _ensure_role_row(db, role_name)
+
+    display_name = claims.get("name")
+    name = (
+        str(display_name).strip()
+        if isinstance(display_name, str) and display_name.strip()
+        else email
+    )
+
+    if not user:
+        # Entra users don't authenticate with local password, but our schema requires a hash.
+        user = User(
+            email=email,
+            name=name,
+            hashed_password=hash_password(uuid.uuid4().hex),
+            role_id=desired_role_id,
+            active=True,
+        )
+        db.add(user)
+        db.flush()
+        db.refresh(user)
+        return user
+
+    changed = False
+    if not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive"
+        )
+    if user.role_id != desired_role_id:
+        user.role_id = desired_role_id
+        changed = True
+    if name and getattr(user, "name", "") != name:
+        user.name = name
+        changed = True
+    if changed:
+        db.add(user)
+        db.flush()
+        db.refresh(user)
+    return user
+
+
 def get_current_user(db: Session = _DB_DEP, token: str = _TOKEN_DEP) -> User:
+    # Heuristic: inspect token header algorithm. Entra access tokens are typically RS256.
+    # Local tokens are HS256 by default.
+    alg = ""
+    try:
+        from jose import jwt as jose_jwt
+
+        hdr = jose_jwt.get_unverified_header(token)
+        alg = str(hdr.get("alg") or "")
+    except Exception:
+        alg = ""
+
+    mode = str(settings.auth_mode or "local").strip().lower()
+
+    if alg.upper().startswith("RS"):
+        if mode not in {"entra", "both"}:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
+        try:
+            claims = decode_and_validate_entra_access_token(token, _entra_cfg())
+        except EntraTokenValidationError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
+        return _get_or_create_user_from_entra_claims(db, claims)
+
+    # Default: treat as local token.
+    if mode == "entra":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     subject = decode_access_token(token)
     if not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -57,6 +208,14 @@ _CURRENT_USER_OPT_DEP = Depends(get_current_user_optional)
 def require_roles(*roles: RoleName) -> Callable:
     _CURRENT_USER_DEP = Depends(get_current_user)
 
+    legacy_to_canonical = {
+        RoleName.compras.value: RoleName.comercial.value,
+        RoleName.vendas.value: RoleName.comercial.value,
+    }
+
+    def canonicalize(role_value: str) -> str:
+        return legacy_to_canonical.get(role_value, role_value)
+
     def dependency(user: User = _CURRENT_USER_DEP) -> User:
         if roles:
             user_role = getattr(getattr(user, "role", None), "name", None)
@@ -66,11 +225,13 @@ def require_roles(*roles: RoleName) -> Callable:
             else:
                 user_role_value = str(user_role) if user_role is not None else ""
 
+            user_role_value = canonicalize(user_role_value)
+
             # Admin has access to everything
             if user_role_value == RoleName.admin.value:
                 return user
 
-            allowed = {(r.value if isinstance(r, RoleName) else str(r)) for r in roles}
+            allowed = {canonicalize(r.value if isinstance(r, RoleName) else str(r)) for r in roles}
 
             if user_role_value not in allowed:
                 raise HTTPException(

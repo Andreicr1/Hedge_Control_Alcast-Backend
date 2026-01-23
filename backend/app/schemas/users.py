@@ -19,7 +19,7 @@ class UserCreate(BaseModel):
     email: str  # Changed from EmailStr - .local domain not always valid
     name: str
     password: str
-    role: RoleName = RoleName.compras
+    role: RoleName = RoleName.comercial
 
 
 class UserRead(BaseModel):

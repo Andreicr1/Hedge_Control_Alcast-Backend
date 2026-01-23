@@ -78,67 +78,93 @@ def _run_migrations_if_configured() -> None:
     cfg_path = backend_root / "alembic.ini"
     alembic_cfg = Config(str(cfg_path))
 
-    engine = create_engine(settings.database_url, future=True)
-    with engine.connect() as connection:
-        dialect = str(connection.dialect.name or "").lower()
+    # Log the DB target (without leaking credentials) so we can diagnose URL parsing
+    # issues in container environments.
+    try:
+        from sqlalchemy.engine.url import make_url
 
-        def _to_regclass(qualified: str) -> str | None:
-            # Postgres-only. Returns NULL if missing.
-            return connection.execute(text("select to_regclass(:q)"), {"q": qualified}).scalar()
+        url_obj = make_url(str(settings.database_url))
+        logger.info(
+            "migrations_db_target driver=%s host=%s port=%s db=%s user=%s has_password=%s",
+            url_obj.drivername,
+            url_obj.host,
+            url_obj.port,
+            url_obj.database,
+            url_obj.username,
+            bool(url_obj.password),
+        )
+    except Exception as e:
+        logger.warning("migrations_db_target_parse_failed error=%s", str(e))
 
-        def _bootstrap_alembic_version_if_needed() -> None:
-            if dialect != "postgresql":
-                return
+    try:
+        db_engine = create_engine(settings.database_url, future=True)
+        with db_engine.connect() as connection:
+            dialect = str(connection.dialect.name or "").lower()
 
-            try:
-                alembic_table = _to_regclass("public.alembic_version")
-                if not alembic_table:
+            def _to_regclass(qualified: str) -> str | None:
+                # Postgres-only. Returns NULL if missing.
+                return connection.execute(text("select to_regclass(:q)"), {"q": qualified}).scalar()
+
+            def _bootstrap_alembic_version_if_needed() -> None:
+                if dialect != "postgresql":
                     return
 
-                count = int(connection.execute(text("select count(*) from public.alembic_version")).scalar() or 0)
-                if count > 0:
+                try:
+                    alembic_table = _to_regclass("public.alembic_version")
+                    if not alembic_table:
+                        return
+
+                    count = int(
+                        connection.execute(text("select count(*) from public.alembic_version")).scalar() or 0
+                    )
+                    if count > 0:
+                        return
+
+                    users_table = _to_regclass("public.users")
+                    if not users_table:
+                        return
+                except Exception as e:
+                    logger.warning("alembic_bootstrap_check_failed", extra={"error": str(e)})
                     return
 
-                users_table = _to_regclass("public.users")
-                if not users_table:
-                    return
-            except Exception as e:
-                logger.warning("alembic_bootstrap_check_failed", extra={"error": str(e)})
-                return
+                logger.info("alembic_bootstrap_stamp_head")
+                command.stamp(alembic_cfg, "head")
 
-            logger.info("alembic_bootstrap_stamp_head")
-            command.stamp(alembic_cfg, "head")
-
-        # Best-effort: avoid concurrent migrations across multiple instances.
-        lock_acquired = True
-        if dialect == "postgresql":
-            try:
-                lock_acquired = bool(
-                    connection.execute(text("select pg_try_advisory_lock(:k)"), {"k": 91238411}).scalar()
-                )
-            except Exception as e:
-                logger.warning("migrations_lock_failed", extra={"error": str(e)})
-                lock_acquired = True
-
-        if not lock_acquired:
-            logger.info("migrations_skipped_lock_not_acquired")
-            return
-
-        try:
-            # Reuse this connection inside Alembic env.py (config.attributes['connection']).
-            alembic_cfg.attributes["connection"] = connection
-
-            # If DB schema exists but alembic_version is empty (legacy bootstrap), stamp head first.
-            _bootstrap_alembic_version_if_needed()
-            command.upgrade(alembic_cfg, "head")
-            logger.info("migrations_applied")
-        finally:
+            # Best-effort: avoid concurrent migrations across multiple instances.
+            lock_acquired = True
             if dialect == "postgresql":
                 try:
-                    connection.execute(text("select pg_advisory_unlock(:k)"), {"k": 91238411})
-                    connection.commit()
-                except Exception:
-                    pass
+                    lock_acquired = bool(
+                        connection.execute(text("select pg_try_advisory_lock(:k)"), {"k": 91238411}).scalar()
+                    )
+                except Exception as e:
+                    logger.warning("migrations_lock_failed", extra={"error": str(e)})
+                    lock_acquired = True
+
+            if not lock_acquired:
+                logger.info("migrations_skipped_lock_not_acquired")
+                return
+
+            try:
+                # Reuse this connection inside Alembic env.py (config.attributes['connection']).
+                alembic_cfg.attributes["connection"] = connection
+
+                # If DB schema exists but alembic_version is empty (legacy bootstrap), stamp head first.
+                _bootstrap_alembic_version_if_needed()
+                command.upgrade(alembic_cfg, "head")
+                logger.info("migrations_applied")
+            finally:
+                if dialect == "postgresql":
+                    try:
+                        connection.execute(text("select pg_advisory_unlock(:k)"), {"k": 91238411})
+                        connection.commit()
+                    except Exception:
+                        pass
+    except Exception as e:
+        # Don't crash the API if migrations fail; surface the issue via logs and
+        # let endpoints that require DB return 503.
+        logger.error("migrations_failed error=%s", str(e))
+        return
 
 
 def _seed_dev_users() -> None:
@@ -152,8 +178,7 @@ def _seed_dev_users() -> None:
         for role_name in [
             models.RoleName.admin,
             models.RoleName.financeiro,
-            models.RoleName.compras,
-            models.RoleName.vendas,
+            models.RoleName.comercial,
             models.RoleName.auditoria,
         ]:
             role = db.query(models.Role).filter(models.Role.name == role_name).first()
@@ -182,8 +207,9 @@ def _seed_dev_users() -> None:
         # Default accounts used by the frontend 'Acesso rápido (dev)'.
         ensure_user("admin@alcast.local", "Admin", models.RoleName.admin)
         ensure_user("financeiro@alcast.dev", "Financeiro", models.RoleName.financeiro)
-        ensure_user("compras@alcast.dev", "Compras", models.RoleName.compras)
-        ensure_user("vendas@alcast.dev", "Vendas", models.RoleName.vendas)
+        ensure_user("comercial@alcast.dev", "Comercial", models.RoleName.comercial)
+        ensure_user("compras@alcast.dev", "Comercial (alias compras)", models.RoleName.comercial)
+        ensure_user("vendas@alcast.dev", "Comercial (alias vendas)", models.RoleName.comercial)
         ensure_user("auditoria@alcast.dev", "Auditoria", models.RoleName.auditoria)
 
         db.commit()
@@ -219,6 +245,7 @@ def _startup_scheduler():
         )
     except Exception:
         pass
+    _run_migrations_if_configured()
     _seed_dev_users()
     # Avoid running background threads in test context by default.
     if (settings.environment or "").lower() == "test":

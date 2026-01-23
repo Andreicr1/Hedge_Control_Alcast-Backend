@@ -29,7 +29,7 @@ def list_customers(
     limit: int = Query(200, ge=1, le=500, description="Limite de registros retornados."),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     query = db.query(models.Customer)
@@ -58,7 +58,7 @@ def create_customer(
     payload: CustomerCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     if db.query(models.Customer).filter(models.Customer.name == payload.name).first():
@@ -78,7 +78,7 @@ def update_customer(
     payload: CustomerUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     customer = db.get(models.Customer, customer_id)
@@ -100,7 +100,7 @@ def delete_customer(
     customer_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     customer = db.get(models.Customer, customer_id)
@@ -115,7 +115,7 @@ def list_customer_documents(
     customer_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     customer = db.get(models.Customer, customer_id)
@@ -141,7 +141,7 @@ def upload_customer_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     customer = db.get(models.Customer, customer_id)
@@ -213,7 +213,7 @@ def run_customer_credit_check(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     customer = db.get(models.Customer, customer_id)

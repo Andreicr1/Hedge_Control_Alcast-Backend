@@ -165,8 +165,8 @@ def _ensure_roles_and_seed_users(db: Session, *, password: str) -> dict[str, int
     roles = {
         "admin": ensure_role(models.RoleName.admin),
         "finance": ensure_role(models.RoleName.financeiro),
-        "sales": ensure_role(models.RoleName.vendas),
-        "purchasing": ensure_role(models.RoleName.compras),
+        "sales": ensure_role(models.RoleName.comercial),
+        "purchasing": ensure_role(models.RoleName.comercial),
         "audit": ensure_role(models.RoleName.auditoria),
     }
 

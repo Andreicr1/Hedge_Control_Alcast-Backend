@@ -7,7 +7,6 @@ from typing import List, Optional
 
 from pydantic import BaseSettings, Field, validator
 
-
 # Pydantic v1 does not fully support Python 3.14+. Our project is pinned to py311.
 if sys.version_info >= (3, 13):
     raise RuntimeError(
@@ -37,6 +36,21 @@ class Settings(BaseSettings):
     webhook_secret: Optional[str] = Field(default=os.getenv("WEBHOOK_SECRET"))
     scheduler_enabled: bool = Field(default=os.getenv("SCHEDULER_ENABLED", "true"))
     run_migrations_on_start: bool = Field(default=False, env="RUN_MIGRATIONS_ON_START")
+
+    # Authentication mode:
+    # - local: use internal OAuth2 password flow (HS256 JWTs)
+    # - entra: accept only Microsoft Entra ID (Azure AD) access tokens
+    # - both: accept either (recommended during migration)
+    auth_mode: str = Field(default=os.getenv("AUTH_MODE", "local"), env="AUTH_MODE")
+
+    # Microsoft Entra ID (Azure AD) token validation.
+    # Required when AUTH_MODE is 'entra' or 'both'.
+    entra_tenant_id: Optional[str] = Field(
+        default=os.getenv("ENTRA_TENANT_ID"), env="ENTRA_TENANT_ID"
+    )
+    entra_audience: Optional[str] = Field(default=os.getenv("ENTRA_AUDIENCE"), env="ENTRA_AUDIENCE")
+    entra_issuer: Optional[str] = Field(default=os.getenv("ENTRA_ISSUER"), env="ENTRA_ISSUER")
+    entra_jwks_url: Optional[str] = Field(default=os.getenv("ENTRA_JWKS_URL"), env="ENTRA_JWKS_URL")
 
     # Private ingestion token for operational scripts (e.g., Excel->API posting).
     # If not set, ingestion endpoints should reject all requests.
@@ -233,6 +247,55 @@ class Settings(BaseSettings):
     def validate_secret_key(cls, v: str) -> str:
         if not v or v.startswith("sua-chave-secreta") or v.lower() in {"change-me", "secret"}:
             raise ValueError("SECRET_KEY must be set to a strong value")
+        return v
+
+    @validator("auth_mode", pre=True)
+    def normalize_auth_mode(cls, v: str) -> str:
+        s = str(v or "").strip().lower()
+        if not s:
+            return "local"
+        if s not in {"local", "entra", "both"}:
+            raise ValueError("AUTH_MODE must be one of: local, entra, both")
+        return s
+
+    @validator("entra_issuer", pre=True, always=True)
+    def default_entra_issuer(cls, v: str | None, values):
+        if v:
+            return str(v).strip()
+        tenant_id = (values.get("entra_tenant_id") or "").strip()
+        if tenant_id:
+            return f"https://login.microsoftonline.com/{tenant_id}/v2.0"
+        return v
+
+    @validator("entra_jwks_url", pre=True, always=True)
+    def default_entra_jwks_url(cls, v: str | None, values):
+        if v:
+            return str(v).strip()
+        tenant_id = (values.get("entra_tenant_id") or "").strip()
+        if tenant_id:
+            return f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+        return v
+
+    @validator("entra_audience")
+    def validate_entra_settings_when_needed(cls, v: str | None, values):
+        mode = str(values.get("auth_mode") or "local").strip().lower()
+        if mode in {"entra", "both"}:
+            missing = []
+            if not (values.get("entra_tenant_id") or "").strip():
+                missing.append("ENTRA_TENANT_ID")
+            if not (v or "").strip():
+                missing.append("ENTRA_AUDIENCE")
+            if not (values.get("entra_issuer") or "").strip():
+                missing.append("ENTRA_ISSUER")
+            if not (values.get("entra_jwks_url") or "").strip():
+                missing.append("ENTRA_JWKS_URL")
+            if missing and str(values.get("environment") or "dev").lower() in {
+                "prod",
+                "production",
+            }:
+                raise ValueError(
+                    f"Missing Entra settings for AUTH_MODE={mode}: {', '.join(missing)}"
+                )
         return v
 
 

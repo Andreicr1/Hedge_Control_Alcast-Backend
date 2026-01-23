@@ -40,7 +40,7 @@ def list_purchase_orders(
     current_user: models.User = Depends(
         require_roles(
             models.RoleName.admin,
-            models.RoleName.compras,
+            models.RoleName.comercial,
             models.RoleName.financeiro,
             models.RoleName.auditoria,
         )
@@ -58,7 +58,7 @@ def create_purchase_order(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     supplier = db.get(models.Supplier, payload.supplier_id)
@@ -160,7 +160,7 @@ def get_purchase_order(
     current_user: models.User = Depends(
         require_roles(
             models.RoleName.admin,
-            models.RoleName.compras,
+            models.RoleName.comercial,
             models.RoleName.financeiro,
             models.RoleName.auditoria,
         )
@@ -186,7 +186,7 @@ def update_purchase_order(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     po = db.get(models.PurchaseOrder, po_id)
@@ -274,7 +274,7 @@ def delete_purchase_order(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     po = db.get(models.PurchaseOrder, po_id)

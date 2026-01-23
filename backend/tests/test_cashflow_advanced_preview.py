@@ -178,7 +178,7 @@ def _seed_avg_contract_with_pnl(*, settlement_date: str = "2025-02-05") -> None:
 
 
 def test_preview_requires_financeiro_or_auditoria():
-    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.vendas)
+    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.comercial)
 
     r = client.post("/api/cashflow/advanced/preview", json={"as_of": "2025-01-10"})
     assert r.status_code == 403

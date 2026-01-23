@@ -133,7 +133,7 @@ def _seed_orders_and_market_data():
 
 
 def test_cashflow_analytic_requires_financeiro_or_auditoria():
-    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.vendas)
+    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.comercial)
     r = client.get("/api/cashflow/analytic")
     assert r.status_code == 403
 

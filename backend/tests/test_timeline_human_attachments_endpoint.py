@@ -89,7 +89,7 @@ def test_human_attachment_create_sets_thread_key_and_is_listed():
 
 
 def test_human_attachment_finance_visibility_requires_financeiro_or_admin():
-    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.vendas)
+    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
     r = client.post("/api/timeline/human/attachments",
         json={
@@ -228,9 +228,9 @@ def test_human_attachment_download_enforces_visibility(tmp_path, monkeypatch):
 
         return StubUser()
 
-    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(models.RoleName.vendas)
+    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(models.RoleName.comercial)
     app.dependency_overrides[deps.get_current_user_optional] = lambda: _stub_user(
-        models.RoleName.vendas
+        models.RoleName.comercial
     )
 
     dl = client.get(f"/api/timeline/human/attachments/{event_id}/download")

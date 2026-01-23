@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.api.deps import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.schemas import Token, UserCreate, UserRead
 from app.services.audit import audit_event
@@ -19,6 +20,10 @@ def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+    # When running in Entra-only mode, disable local password login.
+    if str(settings.auth_mode or "local").strip().lower() == "entra":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
     try:
         user = db.query(models.User).filter(models.User.email == form_data.username).first()
     except SQLAlchemyError:
@@ -80,6 +85,10 @@ def read_current_user(current_user: models.User = Depends(get_current_user)):
 
 @router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
+    # When running in Entra-only mode, disable local signup.
+    if str(settings.auth_mode or "local").strip().lower() == "entra":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
     if db.query(models.User).filter(models.User.email == payload.email).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
@@ -87,15 +96,15 @@ def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db))
 
     # Public signup must NOT allow privilege/role selection.
     # Only the safe default role is permitted; admin (and others) must be assigned via controlled process.
-    if payload.role != models.RoleName.compras:
+    if payload.role != models.RoleName.comercial:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Role assignment is not allowed via signup",
         )
 
-    role = db.query(models.Role).filter(models.Role.name == models.RoleName.compras).first()
+    role = db.query(models.Role).filter(models.Role.name == models.RoleName.comercial).first()
     if not role:
-        role = models.Role(name=models.RoleName.compras, description="compras")
+        role = models.Role(name=models.RoleName.comercial, description="comercial")
         db.add(role)
         db.flush()
 
@@ -112,7 +121,7 @@ def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db))
     audit_event(
         "auth.signup",
         user.id,
-        {"email": user.email, "role": "compras"},
+        {"email": user.email, "role": "comercial"},
         db=db,
         request_id=request.headers.get("x-request-id"),
         ip=(request.client.host if request.client else None),

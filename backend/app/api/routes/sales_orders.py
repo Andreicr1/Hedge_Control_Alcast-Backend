@@ -40,7 +40,7 @@ def list_sales_orders(
     current_user: models.User = Depends(
         require_roles(
             models.RoleName.admin,
-            models.RoleName.vendas,
+            models.RoleName.comercial,
             models.RoleName.financeiro,
             models.RoleName.auditoria,
         )
@@ -58,7 +58,7 @@ def create_sales_order(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     customer = db.get(models.Customer, payload.customer_id)
@@ -159,7 +159,7 @@ def get_sales_order(
     current_user: models.User = Depends(
         require_roles(
             models.RoleName.admin,
-            models.RoleName.vendas,
+            models.RoleName.comercial,
             models.RoleName.financeiro,
             models.RoleName.auditoria,
         )
@@ -183,7 +183,7 @@ def update_sales_order(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     so = db.get(models.SalesOrder, so_id)
@@ -270,7 +270,7 @@ def delete_sales_order(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.vendas)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     so = db.get(models.SalesOrder, so_id)

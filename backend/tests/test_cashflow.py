@@ -130,7 +130,7 @@ def _seed_avg_contract(settlement_date_str: str):
 
 
 def test_cashflow_requires_financeiro_or_auditoria():
-    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.vendas)
+    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.comercial)
 
     r = client.get("/api/cashflow")
     assert r.status_code == 403

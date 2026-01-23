@@ -38,8 +38,7 @@ def ensure_base_roles(db: Session):
     role_specs = [
         (RoleName.admin.value, "Perfil Administrador"),
         (RoleName.financeiro.value, "Perfil Financeiro (hedge/RFQ/MTM)"),
-        (RoleName.compras.value, "Perfil de Compras (PO)"),
-        (RoleName.vendas.value, "Perfil de Vendas (SO)"),
+        (RoleName.comercial.value, "Perfil Comercial (Compras + Vendas)"),
         (RoleName.estoque.value, "Perfil de Estoque"),
     ]
 
@@ -78,10 +77,9 @@ def create_default_users(db: Session):
     # Get role IDs
     role_admin_id = get_role_id(db, RoleName.admin)
     role_financeiro_id = get_role_id(db, RoleName.financeiro)
-    role_compras_id = get_role_id(db, RoleName.compras)
-    role_vendas_id = get_role_id(db, RoleName.vendas)
+    role_comercial_id = get_role_id(db, RoleName.comercial)
 
-    if not all([role_admin_id, role_financeiro_id, role_compras_id, role_vendas_id]):
+    if not all([role_admin_id, role_financeiro_id, role_comercial_id]):
         print("❌ Error: Required roles not found in database. Run migrations first!")
         return
 
@@ -105,16 +103,22 @@ def create_default_users(db: Session):
             "role_id": role_financeiro_id,
         },
         {
-            "email": "compras@alcast.dev",
-            "name": "Compras",
+            "email": "comercial@alcast.dev",
+            "name": "Comercial",
             "password": "123",  # Dev default
-            "role_id": role_compras_id,
+            "role_id": role_comercial_id,
+        },
+        {
+            "email": "compras@alcast.dev",
+            "name": "Comercial (alias compras)",
+            "password": "123",  # Dev default
+            "role_id": role_comercial_id,
         },
         {
             "email": "vendas@alcast.dev",
-            "name": "Vendas",
+            "name": "Comercial (alias vendas)",
             "password": "123",  # Dev default
-            "role_id": role_vendas_id,
+            "role_id": role_comercial_id,
         },
     ]
 

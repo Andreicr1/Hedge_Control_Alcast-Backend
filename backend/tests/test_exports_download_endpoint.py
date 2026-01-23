@@ -124,7 +124,7 @@ def test_exports_download_redirects_only_when_done():
     dl2 = client.get(f"/api/exports/{export_id}/download", follow_redirects=False)
     assert dl2.status_code in (302, 307)
 
-    role_holder[0] = models.RoleName.vendas
+    role_holder[0] = models.RoleName.comercial
     denied = client.get(f"/api/exports/{export_id}/download", follow_redirects=False)
     assert denied.status_code == 403
 

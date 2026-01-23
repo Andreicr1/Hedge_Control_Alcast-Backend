@@ -43,7 +43,7 @@ def admin_user():
 @pytest.fixture
 def compras_user():
     """Set up compras user override."""
-    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(models.RoleName.compras)
+    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(models.RoleName.comercial)
     yield
     app.dependency_overrides.pop(deps.get_current_user, None)
 

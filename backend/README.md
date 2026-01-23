@@ -18,6 +18,29 @@ Notes:
 - In production (`ENVIRONMENT=production`), you must explicitly set `CORS_ORIGINS`.
 - API docs are enabled only in dev/test by default. You can override with `ENABLE_DOCS=true|false`.
 
+### Microsoft Entra ID (optional)
+
+This backend can validate Microsoft Entra ID (Azure AD) access tokens (RS256) and map Entra **App Roles**
+to internal roles.
+
+- Configure `AUTH_MODE`:
+  - `local` (default): current email/password login (`/auth/token`) + internal JWT
+  - `entra`: Entra tokens only (disables `/auth/token` and `/auth/signup`)
+  - `both`: accept either (recommended during migration)
+- Set the Entra validation env vars in production:
+  - `ENTRA_TENANT_ID`
+  - `ENTRA_AUDIENCE` (recommended: API App ID URI, e.g. `api://<api-app-client-id>`)
+
+Role mapping expects the Entra access token to contain a `roles` claim (App Roles). Supported values:
+
+- `financeiro`
+- `comercial`
+- (optional) `admin`, `auditoria`, `estoque`
+
+Setup guide: [ENTRA_SETUP.md](ENTRA_SETUP.md)
+
+Local validator (same code path as the API): [scripts/entra_validate_token.py](scripts/entra_validate_token.py)
+
 ### Windows quick start
 
 1. Create + activate a Python 3.11 virtualenv

@@ -258,7 +258,7 @@ def test_exports_state_at_time_contains_expected_chain_and_is_deterministic(_tem
 
 
 def test_exports_state_at_time_denies_vendas(_temp_storage_dir):
-    client, _SessionLocal, _role = _make_env(models.RoleName.vendas)
+    client, _SessionLocal, _role = _make_env(models.RoleName.comercial)
 
     r = client.post("/api/exports",
         json={

@@ -22,8 +22,7 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
         Depends(
             require_roles(
                 models.RoleName.admin,
-                models.RoleName.compras,
-                models.RoleName.vendas,
+                models.RoleName.comercial,
                 models.RoleName.financeiro,
                 models.RoleName.estoque,
             )

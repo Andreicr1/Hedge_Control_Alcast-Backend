@@ -141,7 +141,7 @@ def test_exports_audit_log_csv_is_downloadable_and_deterministic(_temp_storage_d
 
 
 def test_exports_audit_log_download_denies_vendas(_temp_storage_dir):
-    client, SessionLocal, _role = _make_env(models.RoleName.vendas)
+    client, SessionLocal, _role = _make_env(models.RoleName.comercial)
 
     r = client.post("/api/exports",
         json={

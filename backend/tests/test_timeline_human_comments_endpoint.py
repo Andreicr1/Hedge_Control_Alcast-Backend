@@ -87,7 +87,7 @@ def test_human_comment_create_sets_thread_key_and_is_listed():
 
 
 def test_human_comment_finance_visibility_requires_financeiro_or_admin():
-    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.vendas)
+    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
     r = client.post("/api/timeline/human/comments",
         json={
@@ -350,7 +350,7 @@ def test_human_comment_correction_denies_auditoria():
 
 
 def test_human_comment_correction_finance_visibility_requires_financeiro_or_admin():
-    client, SessionLocal = _make_client_and_sessionmaker(models.RoleName.vendas)
+    client, SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
     db = SessionLocal()
     try:

@@ -58,7 +58,7 @@ def _make_client_and_sessionmaker(role: models.RoleName):
 
 
 def test_customers_list_supports_q_search_and_persists_fields():
-    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.vendas)
+    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
     payload = {
         "name": "Cliente Alpha",
@@ -97,7 +97,7 @@ def test_customers_list_supports_q_search_and_persists_fields():
 
 
 def test_suppliers_list_supports_q_search_and_persists_fields():
-    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.compras)
+    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
     payload = {
         "name": "Fornecedor Beta",

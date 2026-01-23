@@ -54,8 +54,8 @@ def main():
         users_data = [
             ("Admin", "admin@alcast.local", models.RoleName.admin),
             ("Financeiro", "financeiro@alcast.local", models.RoleName.financeiro),
-            ("Compras", "compras@alcast.local", models.RoleName.compras),
-            ("Vendas", "vendas@alcast.local", models.RoleName.vendas),
+            ("Comercial (alias compras)", "compras@alcast.local", models.RoleName.comercial),
+            ("Comercial (alias vendas)", "vendas@alcast.local", models.RoleName.comercial),
             ("Auditoria", "auditoria@alcast.local", models.RoleName.auditoria),
         ]
         for name, email, role_name in users_data:

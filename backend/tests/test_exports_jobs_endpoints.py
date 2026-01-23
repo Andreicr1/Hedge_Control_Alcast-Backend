@@ -127,7 +127,7 @@ def test_exports_job_status_allows_auditoria_read():
 
 
 def test_exports_job_create_denies_vendas():
-    client, _SessionLocal, _role = _make_env(models.RoleName.vendas)
+    client, _SessionLocal, _role = _make_env(models.RoleName.comercial)
 
     r = client.post("/api/exports",
         json={

@@ -28,7 +28,7 @@ def list_suppliers(
     limit: int = Query(200, ge=1, le=500, description="Limite de registros retornados."),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     query = db.query(models.Supplier)
@@ -57,7 +57,7 @@ def create_supplier(
     payload: SupplierCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     if db.query(models.Supplier).filter(models.Supplier.name == payload.name).first():
@@ -77,7 +77,7 @@ def update_supplier(
     payload: SupplierUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     supplier = db.get(models.Supplier, supplier_id)
@@ -99,7 +99,7 @@ def delete_supplier(
     supplier_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     supplier = db.get(models.Supplier, supplier_id)
@@ -114,7 +114,7 @@ def list_supplier_documents(
     supplier_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     supplier = db.get(models.Supplier, supplier_id)
@@ -139,7 +139,7 @@ def upload_supplier_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     supplier = db.get(models.Supplier, supplier_id)
@@ -189,7 +189,7 @@ def run_supplier_kyp(
     supplier_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras)
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
     ),
 ):
     supplier = db.get(models.Supplier, supplier_id)

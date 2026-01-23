@@ -97,7 +97,7 @@ def test_timeline_visibility_filters_non_finance():
     assert r2.status_code == 201
 
     # Non-finance role should only see 'all'.
-    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.vendas)
+    app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.comercial)
     lst = client.get("/api/timeline", params={"subject_type": "deal", "subject_id": 999})
     assert lst.status_code == 200
     items = lst.json()

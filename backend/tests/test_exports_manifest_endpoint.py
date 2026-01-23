@@ -81,7 +81,7 @@ def test_exports_manifest_is_deterministic_for_same_inputs():
 
 
 def test_exports_manifest_denies_non_authorized_roles():
-    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.vendas)
+    client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
     r = client.get("/api/exports/manifest", params={"export_type": "state"})
     assert r.status_code == 403

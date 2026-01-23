@@ -69,8 +69,10 @@ def main() -> None:
     targets = [
         ("admin", models.RoleName.admin, "Administrador"),
         ("financeiro", models.RoleName.financeiro, "Financeiro"),
-        ("compras", models.RoleName.compras, "Compras"),
-        ("vendas", models.RoleName.vendas, "Vendas"),
+        ("comercial", models.RoleName.comercial, "Comercial"),
+        # Keep legacy emails, but both map to the consolidated role.
+        ("compras", models.RoleName.comercial, "Comercial (alias compras)"),
+        ("vendas", models.RoleName.comercial, "Comercial (alias vendas)"),
         ("auditoria", models.RoleName.auditoria, "Auditoria"),
     ]
 

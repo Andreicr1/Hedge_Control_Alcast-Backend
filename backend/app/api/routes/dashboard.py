@@ -644,8 +644,7 @@ def get_timeline(
     current_user: models.User = Depends(
         require_roles(
             RoleName.admin,
-            RoleName.compras,
-            RoleName.vendas,
+            RoleName.comercial,
             RoleName.financeiro,
             RoleName.estoque,
             RoleName.auditoria,

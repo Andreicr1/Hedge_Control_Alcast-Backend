@@ -15,7 +15,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 def list_locations(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras, models.RoleName.estoque)
+        require_roles(models.RoleName.admin, models.RoleName.comercial, models.RoleName.estoque)
     ),
 ):
     return db.query(models.WarehouseLocation).order_by(models.WarehouseLocation.name.asc()).all()
@@ -26,7 +26,7 @@ def create_location(
     payload: WarehouseLocationCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras, models.RoleName.estoque)
+        require_roles(models.RoleName.admin, models.RoleName.comercial, models.RoleName.estoque)
     ),
 ):
     existing = (
@@ -57,7 +57,7 @@ def update_location(
     payload: WarehouseLocationUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
-        require_roles(models.RoleName.admin, models.RoleName.compras, models.RoleName.estoque)
+        require_roles(models.RoleName.admin, models.RoleName.comercial, models.RoleName.estoque)
     ),
 ):
     loc = db.get(models.WarehouseLocation, location_id)

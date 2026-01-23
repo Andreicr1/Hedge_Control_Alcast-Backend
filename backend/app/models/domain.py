@@ -26,6 +26,9 @@ from app.database import Base
 
 class RoleName(PyEnum):
     admin = "admin"
+    # Consolidated commercial role (compras + vendas)
+    comercial = "comercial"
+    # Legacy (kept for backwards compatibility with existing DB rows)
     compras = "compras"
     vendas = "vendas"
     financeiro = "financeiro"
