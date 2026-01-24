@@ -2,6 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 $python = Join-Path $PSScriptRoot "..\..\.venv311\Scripts\python.exe"
 if (-not (Test-Path $python)) {
+	$python = Join-Path $PSScriptRoot "..\..\.venv\Scripts\python.exe"
+}
+if (-not (Test-Path $python)) {
 	$python = "python"
 }
 

@@ -1,3 +1,5 @@
+# ruff: noqa: I001
+
 import logging
 import os
 from pathlib import Path
@@ -70,10 +72,9 @@ def _run_migrations_if_configured() -> None:
         return
 
     # Import lazily to keep import graph light for non-migration startups.
+    from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
-
-    from alembic import command
 
     backend_root = Path(__file__).resolve().parents[1]
     cfg_path = backend_root / "alembic.ini"
