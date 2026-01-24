@@ -34,6 +34,7 @@ def _entra_cfg() -> EntraValidationSettings:
     tenant_id = str(settings.entra_tenant_id or "").strip()
     raw_aud = str(settings.entra_audience or "").strip()
     raw_iss = str(settings.entra_issuer or "").strip()
+    raw_jwks = str(settings.entra_jwks_url or "").strip()
 
     def _split_csv(s: str) -> list[str]:
         # Allow comma/semicolon separated values in env.
@@ -59,11 +60,17 @@ def _entra_cfg() -> EntraValidationSettings:
         issuers.append(f"https://login.microsoftonline.com/{tenant_id}/v2.0")
         issuers.append(f"https://sts.windows.net/{tenant_id}/")
 
+    # JWKS URL: if not provided, default to tenant v2 discovery keys endpoint.
+    # This matches our .env.example guidance and supports validating both v1/v2 issuer shapes.
+    jwks_url = raw_jwks
+    if not jwks_url and tenant_id and tenant_id.count("-") >= 4:
+        jwks_url = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+
     return EntraValidationSettings(
         tenant_id=tenant_id,
         audiences=audiences,
         issuers=issuers,
-        jwks_url=str(settings.entra_jwks_url or "").strip(),
+        jwks_url=jwks_url,
     )
 
 
