@@ -27,7 +27,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=_token_url())
 oauth2_optional = OAuth2PasswordBearer(tokenUrl=_token_url(), auto_error=False)
 
 _DB_DEP = Depends(get_db)
-_TOKEN_DEP = Depends(oauth2_scheme)
 _TOKEN_OPT_DEP = Depends(oauth2_optional)
 
 
@@ -192,7 +191,35 @@ def _get_or_create_user_from_entra_claims(db: Session, claims: dict) -> User:
     return user
 
 
-def get_current_user(db: Session = _DB_DEP, token: str = _TOKEN_DEP) -> User:
+def _extract_bearer_from_headers(request: Request) -> Optional[str]:
+    # Some hosting layers may strip/override the standard Authorization header.
+    # Accept a small set of custom headers (forwarded by our SWA Functions proxy).
+    raw = (
+        request.headers.get("authorization")
+        or request.headers.get("x-hc-authorization")
+        or request.headers.get("x-authorization")
+        or request.headers.get("x-auth-token")
+    )
+    if not raw:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    if s.lower().startswith("bearer "):
+        return s.split(" ", 1)[1].strip()
+    return s
+
+
+def get_current_user(
+    request: Request,
+    db: Session = _DB_DEP,
+    token: Optional[str] = _TOKEN_OPT_DEP,
+) -> User:
+    if not token:
+        token = _extract_bearer_from_headers(request)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
     # Heuristic: inspect token header algorithm. Entra access tokens are typically RS256.
     # Local tokens are HS256 by default.
     alg = ""
@@ -241,13 +268,16 @@ def get_current_user(db: Session = _DB_DEP, token: str = _TOKEN_DEP) -> User:
 
 
 def get_current_user_optional(
+    request: Request,
     db: Session = _DB_DEP,
     token: Optional[str] = _TOKEN_OPT_DEP,
 ) -> Optional[User]:
     if not token:
-        return None
+        token = _extract_bearer_from_headers(request)
+        if not token:
+            return None
     try:
-        return get_current_user(db=db, token=token)
+        return get_current_user(request=request, db=db, token=token)
     except HTTPException:
         return None
 
