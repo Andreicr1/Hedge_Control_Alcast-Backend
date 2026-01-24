@@ -78,10 +78,14 @@ def login_for_access_token(
     return Token(access_token=access_token)
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me")
 def read_current_user(current_user: models.User = Depends(get_current_user)):
-    return current_user
-
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "role": current_user.role.name if current_user.role else None,
+    }
 
 @router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
