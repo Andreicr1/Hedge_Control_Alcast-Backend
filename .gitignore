@@ -3,6 +3,10 @@
 # Local troubleshooting artifacts
 Logs Render.txt
 
+# Azure credential artifacts (never commit)
+azure-credentials.json
+*azure-credentials*.json
+
 # Local perf/run artifacts (never commit)
 phase*_*.json
 phase*_*.txt

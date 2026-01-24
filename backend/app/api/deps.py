@@ -70,10 +70,21 @@ def _entra_cfg() -> EntraValidationSettings:
 
 def _extract_entra_email(claims: dict) -> Optional[str]:
     # Common delegated token claims for internal users.
-    for key in ("preferred_username", "upn", "email"):
+    for key in ("preferred_username", "upn", "email", "unique_name"):
         val = claims.get(key)
         if isinstance(val, str) and "@" in val:
             return val.strip().lower()
+
+    # Some Entra access tokens (depending on app registration / optional claims)
+    # do not include a UPN/email-like claim. Fall back to a stable object id.
+    oid = claims.get("oid") or claims.get("sub")
+    if isinstance(oid, str) and oid.strip():
+        # Single-tenant deployment: keep it unique and email-shaped.
+        tid = claims.get("tid")
+        suffix = "entra.local"
+        if isinstance(tid, str) and tid.count("-") >= 4:
+            suffix = f"{tid}.entra.local"
+        return f"{oid.strip().lower()}@{suffix}"
     return None
 
 
@@ -126,7 +137,14 @@ def _ensure_role_row(db: Session, role_name: RoleName) -> int:
 def _get_or_create_user_from_entra_claims(db: Session, claims: dict) -> User:
     email = _extract_entra_email(claims)
     if not email:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        detail = "Invalid credentials"
+        env = str(getattr(settings, "environment", "") or "").lower()
+        if env in {"dev", "development", "test"}:
+            detail = (
+                "Entra token is missing an identifiable user claim. "
+                "Configure optional claims (preferred_username/email) or ensure oid/sub is present."
+            )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
     role_name = _map_entra_roles_to_role_name(claims.get("roles"))
     if not role_name:
