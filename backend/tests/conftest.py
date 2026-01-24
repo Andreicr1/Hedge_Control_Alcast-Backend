@@ -8,9 +8,11 @@ from sqlalchemy.orm import sessionmaker
 # These must be set before app.config.settings is loaded
 _TEST_DB_PATH = os.path.join(tempfile.gettempdir(), "test_alcast.db")
 os.environ["SECRET_KEY"] = "test-secret-key-1234567890"
+os.environ["ALGORITHM"] = "HS256"
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_TEST_DB_PATH}"
 os.environ["ENVIRONMENT"] = "test"
 os.environ["API_V1_STR"] = "/api"  # Ensure /api prefix is used in tests
+os.environ["AUTH_MODE"] = "local"  # Ensure auth endpoints are available in tests
 os.environ["INGEST_TOKEN"] = "test-ingest-token"
 
 # Now import app modules - they will use the test DATABASE_URL

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app import models
@@ -99,12 +99,13 @@ def get_cashflow_analytic(
     limit: int = _ANALYTIC_LIMIT_Q,
     db: Session = _DB_DEP,
 ):
-    if start_date is None and end_date is None and deal_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail="cashflow/analytic requires date window or deal_id",
-        )
     as_of_date = as_of or date.today()
+
+    # If the caller didn't provide a window or deal_id, default to a bounded
+    # forward-looking window anchored at as_of (avoids unbounded queries in prod).
+    if start_date is None and end_date is None and deal_id is None:
+        start_date = as_of_date
+        end_date = as_of_date + timedelta(days=365)
     filters = CashflowAnalyticFilters(
         start_date=start_date,
         end_date=end_date,

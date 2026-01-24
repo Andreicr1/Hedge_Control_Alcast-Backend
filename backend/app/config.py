@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         default=os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/alcast_db")
     )
     # API prefix used by FastAPI router include. MUST be configured via API_V1_STR (e.g. "/api/v1").
-    api_prefix: str = Field(default="", env="API_V1_STR")
+    api_prefix: str = Field(default=os.getenv("API_V1_STR", "/api"), env="API_V1_STR")
     enable_docs: bool = Field(default=True, env="ENABLE_DOCS")
     secret_key: str = Field(default=os.getenv("SECRET_KEY", "change-me"))
     access_token_expire_minutes: int = Field(

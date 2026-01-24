@@ -109,7 +109,7 @@ def build_cashflow_items(
                 flags.append("baseline_not_available")
 
                 allow_legacy = str(
-                    os.getenv("CASHFLOW_ALLOW_LEGACY_FALLBACK", "false")
+                    os.getenv("CASHFLOW_ALLOW_LEGACY_FALLBACK", "true")
                 ).strip().lower() in {
                     "1",
                     "true",

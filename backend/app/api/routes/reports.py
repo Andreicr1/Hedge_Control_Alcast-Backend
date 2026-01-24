@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 import secrets
 from datetime import date, datetime
 from typing import List, Optional
@@ -161,7 +162,11 @@ def cashflow_ledger_export_public(
     lme_official_symbol: str = Query("Q7Y00", min_length=1, max_length=16),
     format: str = Query("json", description="json or csv"),
 ):
-    expected = (settings.reports_public_token or "").strip()
+    # Settings are instantiated at import time; during tests, env vars may be
+    # set after the first import in another module. Prefer env at request time.
+    expected = (os.getenv("REPORTS_PUBLIC_TOKEN") or "").strip() or (
+        settings.reports_public_token or ""
+    ).strip()
     if not expected:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -301,7 +306,10 @@ def rfq_export(
 ):
     rfq_query = (
         db.query(models.Rfq)
-        .options(selectinload(models.Rfq.send_attempts), selectinload(models.Rfq.quotes))
+        .options(
+            selectinload(models.Rfq.send_attempts),
+            selectinload(models.Rfq.counterparty_quotes),
+        )
         .order_by(models.Rfq.created_at.desc())
     )
     if rfq_status:
@@ -319,7 +327,7 @@ def rfq_export(
         for att in rfq.send_attempts:
             meta_name = (att.metadata_dict or {}).get("counterparty_name")
             providers.add(meta_name or "")
-        for quote in rfq.quotes:
+        for quote in rfq.counterparty_quotes:
             providers.add(quote.provider or "")
         if not providers:
             providers.add("")
@@ -330,7 +338,9 @@ def rfq_export(
                 for att in rfq.send_attempts
                 if (att.metadata_dict or {}).get("counterparty_name", "") == provider
             ]
-            quotes_for_provider = [q for q in rfq.quotes if (q.provider or "") == provider]
+            quotes_for_provider = [
+                q for q in rfq.counterparty_quotes if (q.provider or "") == provider
+            ]
 
             attempt = (
                 sorted(attempts_for_provider, key=lambda a: a.created_at, reverse=True)[0]
