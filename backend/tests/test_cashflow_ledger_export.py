@@ -145,26 +145,26 @@ def test_cashflow_ledger_export_json_uses_last_official_for_variable_orders_and_
     lines = r.json()
     assert isinstance(lines, list)
 
-    so = next(x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-LED-AVG-1")
+    so = next(
+        x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-LED-AVG-1"
+    )
     assert so["unit_price_used"] == 100.0
     assert so["lme_symbol_used"] == "Q7Y00"
     assert so["amount_usd"] == 500.0
 
-    po = next(x for x in lines if x["entity_type"] == "po" and x["source_reference"] == "PO-LED-AVG-1")
+    po = next(
+        x for x in lines if x["entity_type"] == "po" and x["source_reference"] == "PO-LED-AVG-1"
+    )
     assert po["unit_price_used"] == 100.0
     assert po["lme_symbol_used"] == "Q7Y00"
     assert po["amount_usd"] == -700.0
 
     # Contract legs are exported separately (sell positive, buy negative).
     sell_leg = next(
-        x
-        for x in lines
-        if x["entity_type"] == "contract_leg" and x.get("side") == "sell"
+        x for x in lines if x["entity_type"] == "contract_leg" and x.get("side") == "sell"
     )
     buy_leg = next(
-        x
-        for x in lines
-        if x["entity_type"] == "contract_leg" and x.get("side") == "buy"
+        x for x in lines if x["entity_type"] == "contract_leg" and x.get("side") == "buy"
     )
 
     assert sell_leg["unit_price_used"] == 100.0

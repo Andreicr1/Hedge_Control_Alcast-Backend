@@ -105,7 +105,8 @@ def test_exports_pnl_aggregate_csv_is_downloadable_and_deterministic(_temp_stora
         )
         db.commit()
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "pnl_aggregate",
             "as_of": seed_time.isoformat(),
@@ -140,7 +141,8 @@ def test_exports_pnl_aggregate_csv_is_downloadable_and_deterministic(_temp_stora
 def test_exports_pnl_aggregate_denies_vendas(_temp_storage_dir):
     client, _SessionLocal, _role = _make_env(models.RoleName.comercial)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "pnl_aggregate",
             "as_of": datetime(2026, 1, 1, 0, 0, 0).isoformat(),

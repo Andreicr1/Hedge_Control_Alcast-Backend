@@ -7,8 +7,8 @@ frontend types in `DashboardSummary`.
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 import time
 from copy import deepcopy
 from datetime import date, datetime
@@ -254,7 +254,9 @@ def _build_settlements_widget(db: Session) -> dict[str, Any]:
 
     total = 0.0
     breakdown_map: dict[str, float] = {}
-    allow_legacy = str(os.getenv("DASHBOARD_SETTLEMENTS_ALLOW_LEGACY", "false")).strip().lower() in {
+    allow_legacy = str(
+        os.getenv("DASHBOARD_SETTLEMENTS_ALLOW_LEGACY", "false")
+    ).strip().lower() in {
         "1",
         "true",
         "yes",
@@ -472,11 +474,14 @@ def get_dashboard_summary(
 
     Returns MTM, settlements, RFQs, contracts, and timeline
     """
+
     def _safe_call(label: str, func, fallback):
         try:
             return func(), False
         except Exception as exc:  # noqa: BLE001
-            logger.exception("dashboard_summary_failed", extra={"section": label, "error": str(exc)})
+            logger.exception(
+                "dashboard_summary_failed", extra={"section": label, "error": str(exc)}
+            )
             return fallback, True
 
     cache_key = _dashboard_cache_key(current_user)

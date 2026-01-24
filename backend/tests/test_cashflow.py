@@ -16,8 +16,9 @@ from app.database import Base
 from app.main import app
 from app.models.domain import RoleName
 
-
-engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False}, future=True)
+engine = create_engine(
+    os.environ["DATABASE_URL"], connect_args={"check_same_thread": False}, future=True
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 Base.metadata.create_all(bind=engine)
 

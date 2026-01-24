@@ -89,7 +89,11 @@ def create_counterparty(
         payload={
             "counterparty_id": cp.id,
             "name": cp.name,
-            "type": cp_type.value if hasattr(cp_type, "value") else str(cp_type) if cp_type else None,
+            "type": cp_type.value
+            if hasattr(cp_type, "value")
+            else str(cp_type)
+            if cp_type
+            else None,
         },
     )
     return cp

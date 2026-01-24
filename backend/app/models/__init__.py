@@ -39,6 +39,7 @@ from app.models.domain import (
     PnlContractRealized,
     PnlContractSnapshot,
     PnlSnapshotRun,
+    PriceType,
     PricingType,
     PurchaseOrder,
     Rfq,
@@ -63,12 +64,11 @@ from app.models.domain import (
     WhatsAppStatus,
     WorkflowDecision,
     WorkflowRequest,
-    PriceType,
 )
 from app.models.finance_risk_flags import FinanceRiskFlag, FinanceRiskFlagRun
+from app.models.lme_price import LMEPrice
 from app.models.mtm_contract_snapshot import MtmContractSnapshot, MtmContractSnapshotRun
 from app.models.mtm_snapshot import MTMSnapshot
-from app.models.lme_price import LMEPrice
 
 __all__ = [
     "Role",

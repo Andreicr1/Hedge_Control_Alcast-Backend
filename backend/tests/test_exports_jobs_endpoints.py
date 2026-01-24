@@ -98,7 +98,8 @@ def test_exports_job_create_is_deterministic_and_persists_single_row():
 def test_exports_job_status_allows_auditoria_read():
     client, SessionLocal, role_holder = _make_env(models.RoleName.financeiro)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state",
             "subject_type": "rfq",
@@ -129,7 +130,8 @@ def test_exports_job_status_allows_auditoria_read():
 def test_exports_job_create_denies_vendas():
     client, _SessionLocal, _role = _make_env(models.RoleName.comercial)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state",
             "subject_type": "rfq",
@@ -142,7 +144,8 @@ def test_exports_job_create_denies_vendas():
 def test_exports_job_create_denies_auditoria():
     client, _SessionLocal, _role = _make_env(models.RoleName.auditoria)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state",
             "subject_type": "rfq",

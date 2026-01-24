@@ -4,23 +4,24 @@ RBAC Enforcement Tests
 Tests that verify role-based access control is properly enforced
 across different endpoints.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.api import deps
-from app.database import get_db
+from app.main import app
 from app.models.domain import (
-    RoleName,
     Exposure,
-    MarketObjectType,
-    ExposureType,
     ExposureStatus,
+    ExposureType,
+    MarketObjectType,
+    RoleName,
 )
 
 
 def _stub_user(role_name: RoleName):
     """Create a stub user with the given role for testing."""
+
     class StubUser:
         def __init__(self):
             self.id = 1
@@ -102,10 +103,13 @@ def test_dashboard_summary_allows_auditoria(client):
 
 def test_auditoria_is_globally_read_only_blocks_writes(client):
     # Global guard depends on get_current_user_optional.
-    app.dependency_overrides[deps.get_current_user_optional] = lambda: _stub_user(RoleName.auditoria)
+    app.dependency_overrides[deps.get_current_user_optional] = lambda: _stub_user(
+        RoleName.auditoria
+    )
 
     # Any POST should be blocked for Auditoria, even for otherwise-public endpoints.
-    r = client.post("/api/auth/signup",
+    r = client.post(
+        "/api/auth/signup",
         json={"email": "user2@test.com", "name": "User2", "password": "secret123"},
     )
     assert r.status_code == 403
@@ -122,4 +126,3 @@ def test_rfqs_list_allows_admin(client):
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.admin)
     r = client.get("/api/rfqs")
     assert r.status_code == 200
-

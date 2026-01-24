@@ -3,14 +3,13 @@ Workflow Tests - Integration tests for purchase orders, sales orders, RFQs, hedg
 
 Uses the shared test database from conftest.py.
 """
-from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app import models
 from app.api import deps
+from app.main import app
 
 
 def _stub_user(role_name: models.RoleName, user_id: int = 1):

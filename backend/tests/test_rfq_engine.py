@@ -4,7 +4,6 @@ import pytest
 
 from app.services import rfq_engine
 
-
 # =============================================================================
 # Basic Functionality Tests
 # =============================================================================
@@ -22,7 +21,9 @@ def test_forward_fix_payoff_and_ppt():
             fixing_date=date(2024, 1, 2),  # Tuesday
         ),
     )
-    text = rfq_engine.generate_rfq_text(trade=trade, cal=cal, company_header=None, company_label_for_payoff="Alcast")
+    text = rfq_engine.generate_rfq_text(
+        trade=trade, cal=cal, company_header=None, company_label_for_payoff="Alcast"
+    )
 
     assert "How can I Buy 10 mt Al USD ppt 04/01/24?" in text
     assert (
@@ -160,7 +161,7 @@ def test_compute_trade_ppt_dates():
         sync_ppt=True,
     )
     result = rfq_engine.compute_trade_ppt_dates(trade, cal)
-    
+
     assert "leg1_ppt" in result
     assert "leg2_ppt" in result
     assert "trade_ppt" in result
@@ -269,7 +270,7 @@ def test_execution_instruction_limit():
         validity="Day",
     )
     text = rfq_engine.build_execution_instruction(order, rfq_engine.Side.BUY)
-    
+
     assert "Limit" in text
     assert "2450" in text
     assert "Day" in text
@@ -282,7 +283,7 @@ def test_execution_instruction_resting_buy():
         validity="Day",
     )
     text = rfq_engine.build_execution_instruction(order, rfq_engine.Side.BUY)
-    
+
     assert "best offer" in text
 
 
@@ -293,7 +294,7 @@ def test_execution_instruction_resting_sell():
         validity="Day",
     )
     text = rfq_engine.build_execution_instruction(order, rfq_engine.Side.SELL)
-    
+
     assert "best bid" in text
 
 
@@ -322,7 +323,7 @@ def test_swap_with_limit_order():
         sync_ppt=True,
     )
     text = rfq_engine.generate_rfq_text(trade=trade, cal=cal)
-    
+
     assert "Execution Instruction" in text
     assert "Limit" in text
     assert "2450" in text
@@ -348,14 +349,14 @@ def test_expected_payoff_avg_vs_fix_buy_avg():
         month_name="March",
         year=2025,
     )
-    
+
     payoff = rfq_engine.build_expected_payoff_text(
         fixed_leg=fixed_leg,
         other_leg=avg_leg,
         cal=cal,
         company_label="Alcast",
     )
-    
+
     assert "Expected Payoff" in payoff
     assert "Alcast" in payoff
     assert "March 2025" in payoff
@@ -376,14 +377,14 @@ def test_expected_payoff_sell_avg_buy_fix():
         month_name="March",
         year=2025,
     )
-    
+
     payoff = rfq_engine.build_expected_payoff_text(
         fixed_leg=fixed_leg,
         other_leg=avg_leg,
         cal=cal,
         company_label="Company",
     )
-    
+
     assert "Expected Payoff" in payoff
     # When fixed_leg is BUY, if average > fixed: company pays
     assert "Company" in payoff
@@ -439,7 +440,7 @@ def test_forward_single_leg():
         ),
     )
     text = rfq_engine.generate_rfq_text(trade=trade, cal=cal, company_header="Alcast Trading")
-    
+
     assert "How can I Buy" in text
     assert "250 mt" in text
     assert "AVG" in text
@@ -467,7 +468,7 @@ def test_forward_two_legs_sync_ppt():
         sync_ppt=True,
     )
     text = rfq_engine.generate_rfq_text(trade=trade, cal=cal)
-    
+
     # Should have two "How can I" questions
     assert text.count("How can I") == 2
 
@@ -489,7 +490,7 @@ def test_generate_rfq_text_raises_on_validation_error():
             # Missing month_name and year
         ),
     )
-    
+
     with pytest.raises(ValueError):
         rfq_engine.generate_rfq_text(trade=trade, cal=cal)
 

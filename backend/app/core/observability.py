@@ -5,16 +5,15 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime
 from collections import defaultdict, deque
+from datetime import datetime
 from threading import Lock
-from typing import Deque
-from typing import Callable
+from typing import Callable, Deque
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from starlette.responses import Response
 from sqlalchemy.exc import TimeoutError as SATimeoutError
+from starlette.responses import Response
 
 _APP_START_MONOTONIC = time.monotonic()
 
@@ -36,9 +35,13 @@ _EXPOSURES_CONCURRENCY_LIMIT = int(os.getenv("EXPOSURES_CONCURRENCY_LIMIT", "0")
 _EXPOSURES_QUEUE_TIMEOUT_MS = int(os.getenv("EXPOSURES_QUEUE_TIMEOUT_MS", "200"))
 _QUEUE_WAIT_LOG_MS = int(os.getenv("CONCURRENCY_QUEUE_LOG_MS", "50"))
 
-_DASHBOARD_CB_ENABLED = str(
-    os.getenv("DASHBOARD_CIRCUIT_BREAKER_ENABLED", "false")
-).lower() in {"1", "true", "yes", "y", "on"}
+_DASHBOARD_CB_ENABLED = str(os.getenv("DASHBOARD_CIRCUIT_BREAKER_ENABLED", "false")).lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
 _DASHBOARD_CB_WINDOW = int(os.getenv("DASHBOARD_CB_WINDOW", "20"))
 _DASHBOARD_CB_FAILURE_THRESHOLD = float(os.getenv("DASHBOARD_CB_FAILURE_THRESHOLD", "0.5"))
 _DASHBOARD_CB_COOLDOWN_SECONDS = int(os.getenv("DASHBOARD_CB_COOLDOWN_SECONDS", "30"))

@@ -87,6 +87,7 @@ def read_current_user(current_user: models.User = Depends(get_current_user)):
         "role": current_user.role.name if current_user.role else None,
     }
 
+
 @router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def signup(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
     # When running in Entra-only mode, disable local signup.

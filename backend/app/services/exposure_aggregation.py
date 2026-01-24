@@ -69,13 +69,19 @@ def compute_net_exposure(
     so_by_id: dict[int, models.SalesOrder] = {}
     po_by_id: dict[int, models.PurchaseOrder] = {}
     if exposures:
-        so_ids = [int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.so]
-        po_ids = [int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.po]
+        so_ids = [
+            int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.so
+        ]
+        po_ids = [
+            int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.po
+        ]
         if so_ids:
             for so in db.query(models.SalesOrder).filter(models.SalesOrder.id.in_(so_ids)).all():
                 so_by_id[int(so.id)] = so
         if po_ids:
-            for po in db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id.in_(po_ids)).all():
+            for po in (
+                db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id.in_(po_ids)).all()
+            ):
                 po_by_id[int(po.id)] = po
 
     hedged_map = defaultdict(float)

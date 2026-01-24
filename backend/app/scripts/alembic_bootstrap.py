@@ -32,10 +32,14 @@ def main() -> int:
         with engine.connect() as conn:
             alembic_table = _to_regclass(conn, "public.alembic_version")
             if not alembic_table:
-                print("[startup] alembic_bootstrap: alembic_version table missing; treating as fresh DB")
+                print(
+                    "[startup] alembic_bootstrap: alembic_version table missing; treating as fresh DB"
+                )
                 return 0
 
-            count = int(conn.execute(text("select count(*) from public.alembic_version")).scalar() or 0)
+            count = int(
+                conn.execute(text("select count(*) from public.alembic_version")).scalar() or 0
+            )
             if count > 0:
                 print("[startup] alembic_bootstrap: alembic_version already set")
                 return 0
@@ -48,14 +52,19 @@ def main() -> int:
                 return 0
 
     except Exception as exc:
-        print(f"[startup] alembic_bootstrap: DB check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(
+            f"[startup] alembic_bootstrap: DB check failed: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
         return 1
     finally:
         engine.dispose()
 
     # At this point: alembic_version exists but empty, and schema already exists.
     # This happens when schema was created outside Alembic (e.g., SQL bootstrap).
-    print("[startup] alembic_bootstrap: existing schema detected with empty alembic_version; stamping head")
+    print(
+        "[startup] alembic_bootstrap: existing schema detected with empty alembic_version; stamping head"
+    )
 
     alembic_config = os.environ.get("ALEMBIC_CONFIG", "alembic.ini")
     try:

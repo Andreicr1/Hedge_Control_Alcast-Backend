@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import OperationalError
 
+from app import models
 from app.api.deps import enforce_auditoria_readonly
 from app.api.router import api_router
 from app.config import settings
@@ -15,10 +16,9 @@ from app.core.observability import (
     uptime_seconds,
     utc_now_iso,
 )
-from app.services.scheduler import runner as daily_runner
 from app.database import POOL_CONFIG, SessionLocal, engine
 from app.services.auth import hash_password
-from app import models
+from app.services.scheduler import runner as daily_runner
 
 api_prefix = (
     settings.api_prefix
@@ -70,9 +70,10 @@ def _run_migrations_if_configured() -> None:
         return
 
     # Import lazily to keep import graph light for non-migration startups.
-    from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
+
+    from alembic import command
 
     backend_root = Path(__file__).resolve().parents[1]
     cfg_path = backend_root / "alembic.ini"
@@ -115,7 +116,10 @@ def _run_migrations_if_configured() -> None:
                         return
 
                     count = int(
-                        connection.execute(text("select count(*) from public.alembic_version")).scalar() or 0
+                        connection.execute(
+                            text("select count(*) from public.alembic_version")
+                        ).scalar()
+                        or 0
                     )
                     if count > 0:
                         return
@@ -135,7 +139,9 @@ def _run_migrations_if_configured() -> None:
             if dialect == "postgresql":
                 try:
                     lock_acquired = bool(
-                        connection.execute(text("select pg_try_advisory_lock(:k)"), {"k": 91238411}).scalar()
+                        connection.execute(
+                            text("select pg_try_advisory_lock(:k)"), {"k": 91238411}
+                        ).scalar()
                     )
                 except Exception as e:
                     logger.warning("migrations_lock_failed", extra={"error": str(e)})

@@ -14,6 +14,7 @@ if str(settings.database_url).startswith("postgresql"):
 db_url = str(settings.database_url)
 is_postgres = db_url.startswith("postgresql")
 
+
 def _env_bool(key: str, default: str = "false") -> bool:
     v = os.getenv(key, default)
     return str(v).strip().lower() in {"1", "true", "yes", "y", "on"}

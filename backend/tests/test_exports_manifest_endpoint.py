@@ -61,14 +61,16 @@ def _make_client_and_sessionmaker(role: models.RoleName):
 def test_exports_manifest_is_deterministic_for_same_inputs():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    r1 = client.get("/api/exports/manifest",
+    r1 = client.get(
+        "/api/exports/manifest",
         params={"export_type": "state", "subject_type": "rfq", "subject_id": 123},
         headers={"X-Request-ID": "11111111-1111-1111-1111-111111111111"},
     )
     assert r1.status_code == 200
     m1 = r1.json()
 
-    r2 = client.get("/api/exports/manifest",
+    r2 = client.get(
+        "/api/exports/manifest",
         params={"export_type": "state", "subject_type": "rfq", "subject_id": 123},
         headers={"X-Request-ID": "22222222-2222-2222-2222-222222222222"},
     )

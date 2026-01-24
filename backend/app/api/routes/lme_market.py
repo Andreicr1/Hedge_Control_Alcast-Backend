@@ -54,7 +54,11 @@ def ingest_lme_price(payload: LMEPriceIngest, db: Session = Depends(get_db)) -> 
     )
 
     # Idempotency for automation: if the same point already exists, return it.
-    if existing and float(existing.price) == float(payload.price) and existing.source == payload.source:
+    if (
+        existing
+        and float(existing.price) == float(payload.price)
+        and existing.source == payload.source
+    ):
         return {
             "id": existing.id,
             "symbol": existing.symbol,

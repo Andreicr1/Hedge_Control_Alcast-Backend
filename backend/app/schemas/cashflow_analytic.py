@@ -5,7 +5,6 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
-
 EntityType = Literal["deal", "so", "po", "contract", "exposure"]
 CashflowType = Literal["physical", "financial", "risk"]
 ValuationMethod = Literal["fixed", "mtm"]

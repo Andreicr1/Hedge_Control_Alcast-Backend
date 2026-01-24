@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, validator
 
-
 LmeSymbol = Literal["P3Y00", "P4Y00", "Q7Y00", "^USDBRL"]
 LmePriceType = Literal["live", "close", "official"]
 

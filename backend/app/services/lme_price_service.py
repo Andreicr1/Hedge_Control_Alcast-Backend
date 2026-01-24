@@ -73,10 +73,7 @@ def lme_price_by_day_prefer_types(
     if source:
         q = q.filter(models.LMEPrice.source == source)
 
-    rows = (
-        q.order_by(models.LMEPrice.ts_price.asc(), models.LMEPrice.ts_ingest.asc())
-        .all()
-    )
+    rows = q.order_by(models.LMEPrice.ts_price.asc(), models.LMEPrice.ts_ingest.asc()).all()
 
     # Track latest obs per (day, price_type)
     latest_by_day_type: dict[tuple[date, str], models.LMEPrice] = {}

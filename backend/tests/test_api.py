@@ -8,15 +8,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
+from app import models
+from app.api import deps
 from app.database import Base
 from app.main import app
-from app.api import deps
-from app import models
 from app.models.domain import RoleName
 from app.services.audit import audit_event
 
-
-engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False}, future=True)
+engine = create_engine(
+    os.environ["DATABASE_URL"], connect_args={"check_same_thread": False}, future=True
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 Base.metadata.create_all(bind=engine)
 
@@ -47,12 +48,14 @@ client = TestClient(app)
 
 
 def test_auth_signup_and_token():
-    resp = client.post("/api/auth/signup",
+    resp = client.post(
+        "/api/auth/signup",
         json={"email": "user@test.com", "name": "User", "password": "secret123"},
     )
     assert resp.status_code == 201
 
-    token_resp = client.post("/api/auth/token",
+    token_resp = client.post(
+        "/api/auth/token",
         data={"username": "user@test.com", "password": "secret123"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -75,11 +78,15 @@ def test_healthcheck_and_request_id_header():
 
 def test_audit_logs_persist_for_auth_events():
     # signup
-    r = client.post("/api/auth/signup", json={"email": "audit@test.com", "name": "Audit", "password": "secret123"})
+    r = client.post(
+        "/api/auth/signup",
+        json={"email": "audit@test.com", "name": "Audit", "password": "secret123"},
+    )
     assert r.status_code == 201
 
     # login (token)
-    r = client.post("/api/auth/token",
+    r = client.post(
+        "/api/auth/token",
         data={"username": "audit@test.com", "password": "secret123"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -99,7 +106,8 @@ def test_audit_log_captures_request_context_for_signup():
     req_id = "test-req-id-audit-ctx-1"
     user_agent = "pytest-audit-agent"
 
-    r = client.post("/api/auth/signup",
+    r = client.post(
+        "/api/auth/signup",
         json={"email": "auditctx@test.com", "name": "Audit Ctx", "password": "secret123"},
         headers={"X-Request-ID": req_id, "User-Agent": user_agent},
     )
@@ -166,7 +174,8 @@ def test_signup_succeeds_even_if_audit_commit_fails():
     app.dependency_overrides[deps.get_db] = override_get_db_fail_audit_commit_only
     try:
         req_id = "test-req-id-audit-fail-1"
-        r = client.post("/api/auth/signup",
+        r = client.post(
+            "/api/auth/signup",
             json={"email": "auditfail@test.com", "name": "Audit Fail", "password": "secret123"},
             headers={"X-Request-ID": req_id},
         )
@@ -191,7 +200,8 @@ def test_signup_succeeds_even_if_audit_commit_fails():
 
 
 def test_signup_rejects_role_assignment():
-    resp = client.post("/api/auth/signup",
+    resp = client.post(
+        "/api/auth/signup",
         json={"email": "bad@test.com", "name": "Bad", "password": "secret123", "role": "admin"},
     )
     assert resp.status_code == 400
@@ -207,13 +217,15 @@ def test_purchase_order_list_requires_auth():
 
 def test_sales_order_creation_and_validation():
     app.dependency_overrides[deps.get_current_user] = lambda: get_admin_user()
-    cust_resp = client.post("/api/customers",
+    cust_resp = client.post(
+        "/api/customers",
         json={"name": "Cliente", "code": "C1", "contact_email": "c@c.com", "contact_phone": "321"},
     )
     assert cust_resp.status_code == 201
     cust_id = cust_resp.json()["id"]
 
-    so_resp = client.post("/api/sales-orders",
+    so_resp = client.post(
+        "/api/sales-orders",
         json={
             "customer_id": cust_id,
             "product": "Alumínio",
@@ -227,7 +239,8 @@ def test_sales_order_creation_and_validation():
     assert so_resp.status_code == 201
     assert so_resp.json()["so_number"]
 
-    bad_resp = client.post("/api/sales-orders",
+    bad_resp = client.post(
+        "/api/sales-orders",
         json={
             "customer_id": cust_id,
             "product": "Alumínio",
@@ -242,7 +255,8 @@ def test_sales_order_creation_and_validation():
 
 def test_counterparty_crud():
     app.dependency_overrides[deps.get_current_user] = lambda: get_admin_user()
-    resp = client.post("/api/counterparties",
+    resp = client.post(
+        "/api/counterparties",
         json={"name": "Banco X", "type": "bank", "contact_email": "b@x.com"},
     )
     assert resp.status_code == 201
@@ -268,25 +282,24 @@ def test_rfq_preview():
     payload = {
         "trade_type": "Swap",
         "leg1": {
-          "side": "buy",
-          "price_type": "AVG",
-          "quantity_mt": 10,
-          "month_name": "January",
-          "year": 2025
+            "side": "buy",
+            "price_type": "AVG",
+            "quantity_mt": 10,
+            "month_name": "January",
+            "year": 2025,
         },
         "leg2": {
-          "side": "sell",
-          "price_type": "Fix",
-          "quantity_mt": 10,
-          "fixing_date": "2025-01-15"
+            "side": "sell",
+            "price_type": "Fix",
+            "quantity_mt": 10,
+            "fixing_date": "2025-01-15",
         },
         "sync_ppt": False,
         "company_header": "Alcast",
-        "company_label_for_payoff": "Alcast"
+        "company_label_for_payoff": "Alcast",
     }
     resp = client.post("/api/rfqs/preview", json=payload)
     assert resp.status_code == 200
     body = resp.json()
     assert "text" in body
     app.dependency_overrides.pop(deps.get_current_user, None)
-

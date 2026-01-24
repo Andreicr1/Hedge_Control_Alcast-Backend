@@ -12,10 +12,10 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-1234567890")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ENVIRONMENT", "test")
 
+from app import models
+from app.api import deps
 from app.database import Base
 from app.main import app
-from app.api import deps
-from app import models
 
 
 @pytest.fixture(autouse=True)

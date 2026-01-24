@@ -243,9 +243,7 @@ def test_sales_order_cancelled_closes_exposure_and_cancels_tasks():
             .filter(models.Exposure.source_id == so_id)
             .one()
         )
-        task = (
-            db.query(models.HedgeTask).filter(models.HedgeTask.exposure_id == exp.id).one()
-        )
+        task = db.query(models.HedgeTask).filter(models.HedgeTask.exposure_id == exp.id).one()
         assert task.status == models.HedgeTaskStatus.pending
 
         r2 = client.put(
@@ -468,9 +466,7 @@ def test_purchase_order_exposure_only_when_active_for_floating(pricing_type: str
             "lme_premium": 0.0,
             "status": "draft",
         }
-        r = client.post(
-            "/api/purchase-orders", json=payload, headers={"X-Request-ID": request_id}
-        )
+        r = client.post("/api/purchase-orders", json=payload, headers={"X-Request-ID": request_id})
         assert r.status_code == 201
         po_id = int(r.json()["id"])
 

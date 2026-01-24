@@ -1,6 +1,6 @@
+import os
 from datetime import date
 from typing import List
-import os
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_
@@ -133,10 +133,7 @@ def list_exposures(
             q = q.filter(func.to_char(date_expr, "YYYY-MM") == period)
 
     exposures: list[models.Exposure] = (
-        q.order_by(models.Exposure.created_at.desc())
-        .offset(int(offset))
-        .limit(safe_limit)
-        .all()
+        q.order_by(models.Exposure.created_at.desc()).offset(int(offset)).limit(safe_limit).all()
     )
 
     hedged_by_exposure_id: dict[int, float] = {}
@@ -172,7 +169,7 @@ def list_exposures(
                 counterparty = getattr(hedge, "counterparty", None) if hedge else None
                 hedges_out.append(
                     {
-                        "hedge_id": int(getattr(link, "hedge_id")),
+                        "hedge_id": int(link.hedge_id),
                         "quantity_mt": q,
                         "counterparty_name": getattr(counterparty, "name", None)
                         if counterparty

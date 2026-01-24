@@ -268,7 +268,8 @@ def test_exports_chain_export_generates_csv_pdf_and_bundle_deterministically(_te
 
         db.commit()
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "chain_export",
             "as_of": seed_time.isoformat(),

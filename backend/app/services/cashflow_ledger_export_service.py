@@ -61,7 +61,9 @@ def _latest_official_price(
     )
 
 
-def _safe_date_for_order(*, expected_delivery_date: date | None, fixing_deadline: date | None) -> date:
+def _safe_date_for_order(
+    *, expected_delivery_date: date | None, fixing_deadline: date | None
+) -> date:
     if expected_delivery_date is not None:
         return expected_delivery_date
     if fixing_deadline is not None:
@@ -295,7 +297,9 @@ def build_cashflow_ledger_lines(
     if end_date is not None:
         c_q = c_q.filter(models.Contract.settlement_date <= end_date)
 
-    for c in c_q.order_by(models.Contract.settlement_date.asc(), models.Contract.contract_id.asc()).all():
+    for c in c_q.order_by(
+        models.Contract.settlement_date.asc(), models.Contract.contract_id.asc()
+    ).all():
         if c.settlement_date is None:
             continue
         if not _in_range(c.settlement_date, start_date, end_date):

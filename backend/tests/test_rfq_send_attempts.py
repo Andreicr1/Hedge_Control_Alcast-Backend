@@ -1,5 +1,3 @@
-import json
-from datetime import datetime
 import hashlib
 import hmac
 import time
@@ -10,14 +8,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.main import app
-from app.database import Base
 from app import models
-from app.models.domain import RfqStatus
-from app.api.routes import rfq_send
-from app.schemas import RfqSendAttemptCreate
-from app.api.routes import rfq_webhook
+from app.api.routes import rfq_send, rfq_webhook
 from app.config import settings
+from app.database import Base
+from app.main import app
+from app.models.domain import RfqStatus
+from app.schemas import RfqSendAttemptCreate
 
 # In-memory SQLite for isolated tests (shared across connections)
 test_engine = create_engine(
@@ -82,12 +79,19 @@ def seed_rfq():
     return rfq
 
 
-@pytest.mark.skip(reason="Rfq model schema changed significantly - needs refactor to use new fields (so_id, rfq_number, period instead of rfq_type, reference_po_id, tenor_month)")
+@pytest.mark.skip(
+    reason="Rfq model schema changed significantly - needs refactor to use new fields (so_id, rfq_number, period instead of rfq_type, reference_po_id, tenor_month)"
+)
 def test_send_attempt_flow():
     rfq = seed_rfq()
 
     # Call route handler directly with stub user and session
-    payload = RfqSendAttemptCreate(channel="email", idempotency_key="k1", metadata={"failures_before_success": 1}, max_retries=2)
+    payload = RfqSendAttemptCreate(
+        channel="email",
+        idempotency_key="k1",
+        metadata={"failures_before_success": 1},
+        max_retries=2,
+    )
     db = TestingSessionLocal()
     attempt_obj = rfq_send.send_rfq(
         rfq_id=rfq.id,
@@ -95,7 +99,11 @@ def test_send_attempt_flow():
         db=db,
         current_user=_StubUser(models.RoleName.financeiro),
     )
-    attempt_status = attempt_obj.status.value if hasattr(attempt_obj.status, "value") else str(attempt_obj.status)
+    attempt_status = (
+        attempt_obj.status.value
+        if hasattr(attempt_obj.status, "value")
+        else str(attempt_obj.status)
+    )
     assert attempt_status in ["queued", "sent"]  # should succeed after retry
     assert attempt_obj.rfq_id == rfq.id
     assert attempt_obj.idempotency_key == "k1"

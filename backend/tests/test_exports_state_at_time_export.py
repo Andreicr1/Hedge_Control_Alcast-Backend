@@ -195,7 +195,8 @@ def test_exports_state_at_time_contains_expected_chain_and_is_deterministic(_tem
 
         db.commit()
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state_at_time",
             "as_of": seed_time.isoformat(),
@@ -260,7 +261,8 @@ def test_exports_state_at_time_contains_expected_chain_and_is_deterministic(_tem
 def test_exports_state_at_time_denies_vendas(_temp_storage_dir):
     client, _SessionLocal, _role = _make_env(models.RoleName.comercial)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state_at_time",
             "as_of": datetime(2026, 1, 1, 0, 0, 0).isoformat(),

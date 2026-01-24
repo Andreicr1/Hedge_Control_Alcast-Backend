@@ -205,7 +205,9 @@ def test_send_rfq_emits_expected_keys_and_shared_correlation(monkeypatch):
             "retry": False,
         }
 
-        r = client.post(f"/api/rfqs/{rfq.id}/send", json=payload, headers={"X-Request-ID": request_id})
+        r = client.post(
+            f"/api/rfqs/{rfq.id}/send", json=payload, headers={"X-Request-ID": request_id}
+        )
         assert r.status_code == 202
         attempt_id = int(r.json()["id"])
 
@@ -249,7 +251,9 @@ def test_send_rfq_emits_expected_keys_and_shared_correlation(monkeypatch):
         assert state_changed.payload["to_status"] == "sent"
 
         # Idempotent replay should not duplicate Timeline rows.
-        r2 = client.post(f"/api/rfqs/{rfq.id}/send", json=payload, headers={"X-Request-ID": request_id})
+        r2 = client.post(
+            f"/api/rfqs/{rfq.id}/send", json=payload, headers={"X-Request-ID": request_id}
+        )
         assert r2.status_code == 202
 
         state_changed_events = (

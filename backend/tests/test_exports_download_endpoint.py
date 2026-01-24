@@ -64,7 +64,8 @@ def _make_env(initial_role: models.RoleName = models.RoleName.financeiro):
 def test_exports_download_denies_when_not_done_and_never_returns_artifacts_in_status():
     client, SessionLocal, _role = _make_env(models.RoleName.financeiro)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state",
             "subject_type": "rfq",
@@ -93,7 +94,8 @@ def test_exports_download_denies_when_not_done_and_never_returns_artifacts_in_st
 def test_exports_download_redirects_only_when_done():
     client, SessionLocal, role_holder = _make_env(models.RoleName.financeiro)
 
-    r = client.post("/api/exports",
+    r = client.post(
+        "/api/exports",
         json={
             "export_type": "state",
             "subject_type": "rfq",

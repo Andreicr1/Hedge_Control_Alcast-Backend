@@ -127,7 +127,8 @@ def test_rfq_create_blocks_when_customer_kyc_status_not_approved():
     try:
         so, cp = _seed_so_and_counterparty(db=db, customer_kyc_status="pending")
 
-        r = client.post("/api/rfqs",
+        r = client.post(
+            "/api/rfqs",
             json={
                 "rfq_number": "RFQ-1",
                 "so_id": so.id,
@@ -157,7 +158,8 @@ def test_rfq_create_blocks_when_customer_sanctions_flagged():
             customer_sanctions_flag=True,
         )
 
-        r = client.post("/api/rfqs",
+        r = client.post(
+            "/api/rfqs",
             json={
                 "rfq_number": "RFQ-2",
                 "so_id": so.id,
@@ -183,7 +185,8 @@ def test_rfq_create_allows_when_customer_kyc_approved():
     try:
         so, cp = _seed_so_and_counterparty(db=db, customer_kyc_status="approved")
 
-        r = client.post("/api/rfqs",
+        r = client.post(
+            "/api/rfqs",
             json={
                 "rfq_number": "RFQ-3",
                 "so_id": so.id,

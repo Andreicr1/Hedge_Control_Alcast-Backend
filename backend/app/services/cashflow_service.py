@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
 import os
+from datetime import date
 from typing import Iterable, List
 
 from sqlalchemy.orm import Session
@@ -108,7 +108,9 @@ def build_cashflow_items(
             else:
                 flags.append("baseline_not_available")
 
-                allow_legacy = str(os.getenv("CASHFLOW_ALLOW_LEGACY_FALLBACK", "false")).strip().lower() in {
+                allow_legacy = str(
+                    os.getenv("CASHFLOW_ALLOW_LEGACY_FALLBACK", "false")
+                ).strip().lower() in {
                     "1",
                     "true",
                     "yes",

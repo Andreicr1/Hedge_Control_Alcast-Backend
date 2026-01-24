@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-import logging
 from typing import Any, Callable, Literal
 
 from sqlalchemy.orm import Session

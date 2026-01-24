@@ -60,7 +60,8 @@ client = TestClient(app)
 def test_finance_pipeline_run_post_requires_finance_or_admin():
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.auditoria)
     try:
-        r = client.post("/api/pipelines/finance/daily/run",
+        r = client.post(
+            "/api/pipelines/finance/daily/run",
             json={
                 "as_of_date": "2026-01-16",
                 "pipeline_version": "finance.pipeline.daily.v1.usd_only",
@@ -76,7 +77,8 @@ def test_finance_pipeline_run_post_requires_finance_or_admin():
 def test_finance_pipeline_run_get_allows_auditoria():
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.financeiro)
     try:
-        r = client.post("/api/pipelines/finance/daily/run",
+        r = client.post(
+            "/api/pipelines/finance/daily/run",
             headers={"X-Request-ID": "00000000-0000-0000-0000-00000000a004"},
             json={
                 "as_of_date": "2026-01-16",
@@ -117,7 +119,8 @@ def test_finance_pipeline_run_get_allows_auditoria():
 def test_finance_pipeline_run_get_by_inputs_hash():
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.admin)
     try:
-        r = client.post("/api/pipelines/finance/daily/run",
+        r = client.post(
+            "/api/pipelines/finance/daily/run",
             headers={"X-Request-ID": "00000000-0000-0000-0000-00000000a005"},
             json={
                 "as_of_date": "2026-01-16",

@@ -8,13 +8,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.api import deps
 from app.database import Base
 from app.main import app
-from app.api import deps
 from app.models.domain import RoleName
 
-
-engine = create_engine(os.environ["DATABASE_URL"], connect_args={"check_same_thread": False}, future=True)
+engine = create_engine(
+    os.environ["DATABASE_URL"], connect_args={"check_same_thread": False}, future=True
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 Base.metadata.create_all(bind=engine)
 
@@ -47,7 +48,8 @@ client = TestClient(app)
 def test_timeline_create_and_list_for_subject():
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.financeiro)
 
-    create = client.post("/api/timeline/events",
+    create = client.post(
+        "/api/timeline/events",
         json={
             "event_type": "SO_CREATED",
             "subject_type": "rfq",
@@ -74,7 +76,8 @@ def test_timeline_visibility_filters_non_finance():
     # Create one finance-only and one all-visible event.
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.financeiro)
 
-    r1 = client.post("/api/timeline/events",
+    r1 = client.post(
+        "/api/timeline/events",
         json={
             "event_type": "EXPOSURE_UPDATED",
             "subject_type": "deal",
@@ -85,7 +88,8 @@ def test_timeline_visibility_filters_non_finance():
     )
     assert r1.status_code == 201
 
-    r2 = client.post("/api/timeline/events",
+    r2 = client.post(
+        "/api/timeline/events",
         json={
             "event_type": "EXPOSURE_UPDATED",
             "subject_type": "deal",
@@ -113,9 +117,12 @@ def test_timeline_visibility_filters_non_finance():
 
 
 def test_auditoria_global_readonly_blocks_timeline_post():
-    app.dependency_overrides[deps.get_current_user_optional] = lambda: _stub_user(RoleName.auditoria)
+    app.dependency_overrides[deps.get_current_user_optional] = lambda: _stub_user(
+        RoleName.auditoria
+    )
 
-    r = client.post("/api/timeline/events",
+    r = client.post(
+        "/api/timeline/events",
         json={
             "event_type": "SO_CREATED",
             "subject_type": "rfq",
@@ -130,7 +137,8 @@ def test_auditoria_global_readonly_blocks_timeline_post():
 def test_timeline_rejects_unknown_event_type():
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.financeiro)
 
-    r = client.post("/api/timeline/events",
+    r = client.post(
+        "/api/timeline/events",
         json={
             "event_type": "UNKNOWN_TYPE",
             "subject_type": "so",

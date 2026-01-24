@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 EntityKind = Literal["root", "deal", "so", "po", "contract"]
 
 
@@ -22,6 +21,7 @@ class EntityTreeNode(BaseModel):
 
 class EntityTreeResponse(BaseModel):
     root: EntityTreeNode
+
 
 try:  # Pydantic v2
     EntityTreeNode.model_rebuild()  # type: ignore[attr-defined]

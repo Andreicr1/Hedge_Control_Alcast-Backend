@@ -1,13 +1,12 @@
-import pytest
 from datetime import date
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models
 from app.database import Base
-
 
 # Isolated in-memory DB
 engine = create_engine(
@@ -77,7 +76,9 @@ def test_contract_settled_requires_settlement_date():
 
 def test_contract_settled_accepts_settlement_date():
     db = TestingSessionLocal()
-    _seed_minimum_contract(db, status=models.ContractStatus.settled.value, settlement_date=date(2026, 1, 31))
+    _seed_minimum_contract(
+        db, status=models.ContractStatus.settled.value, settlement_date=date(2026, 1, 31)
+    )
     db.commit()
 
     c = db.query(models.Contract).first()

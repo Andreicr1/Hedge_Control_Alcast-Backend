@@ -7,7 +7,6 @@ from typing import Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app import models
-
 from app.services.lme_price_service import lme_price_by_day_prefer_types
 
 AL_CASH_SETTLEMENT_SYMBOL = "P3Y00"  # LME Aluminium Cash Settlement (single source: LMEPrice)

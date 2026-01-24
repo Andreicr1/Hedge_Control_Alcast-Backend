@@ -567,7 +567,9 @@ class PurchaseOrder(Base):
     avg_cost: Mapped[float | None] = mapped_column(Float)
     status: Mapped[OrderStatus] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
-        Enum(OrderStatus, native_enum=False), default=OrderStatus.draft, nullable=False
+        Enum(OrderStatus, native_enum=False),
+        default=OrderStatus.draft,
+        nullable=False,
     )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -610,7 +612,9 @@ class SalesOrder(Base):
     location: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[OrderStatus] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
-        Enum(OrderStatus, native_enum=False), default=OrderStatus.draft, nullable=False
+        Enum(OrderStatus, native_enum=False),
+        default=OrderStatus.draft,
+        nullable=False,
     )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -711,7 +715,9 @@ class Rfq(Base):
     period: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[RfqStatus] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
-        Enum(RfqStatus, native_enum=False), default=RfqStatus.pending, nullable=False
+        Enum(RfqStatus, native_enum=False),
+        default=RfqStatus.pending,
+        nullable=False,
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     awarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1219,9 +1225,7 @@ class ContractExposure(Base):
     contract_id: Mapped[str] = mapped_column(
         ForeignKey("contracts.contract_id"), nullable=False, index=True
     )
-    exposure_id: Mapped[int] = mapped_column(
-        ForeignKey("exposures.id"), nullable=False, index=True
-    )
+    exposure_id: Mapped[int] = mapped_column(ForeignKey("exposures.id"), nullable=False, index=True)
     quantity_mt: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -1242,7 +1246,10 @@ class Deal(Base):
     currency: Mapped[str] = mapped_column(String(8), default="USD")
     status: Mapped[DealStatus] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
-        Enum(DealStatus, native_enum=False), default=DealStatus.open, nullable=False, index=True
+        Enum(DealStatus, native_enum=False),
+        default=DealStatus.open,
+        nullable=False,
+        index=True,
     )
     lifecycle_status: Mapped[DealLifecycleStatus] = mapped_column(
         Enum(DealLifecycleStatus),

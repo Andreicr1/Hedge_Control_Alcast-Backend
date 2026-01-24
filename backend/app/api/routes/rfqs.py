@@ -85,8 +85,16 @@ def _link_contract_to_exposures(
         .filter(models.Exposure.status != models.ExposureStatus.closed)
         .all()
     )
-    exposures = [e for e in (so_exposures + po_exposures) if _exposure_period_bucket(e) == rfq_period]
-    exposures.sort(key=lambda e: (getattr(e.source_type, "value", str(e.source_type)), int(e.source_id), int(e.id)))
+    exposures = [
+        e for e in (so_exposures + po_exposures) if _exposure_period_bucket(e) == rfq_period
+    ]
+    exposures.sort(
+        key=lambda e: (
+            getattr(e.source_type, "value", str(e.source_type)),
+            int(e.source_id),
+            int(e.id),
+        )
+    )
 
     if not exposures:
         return
@@ -115,7 +123,9 @@ def _link_contract_to_exposures(
 
     remaining_qty = _trade_quantity_mt(
         trade_snapshot=contract.trade_snapshot or {},
-        fallback=float(getattr(db.get(models.Rfq, int(contract.rfq_id)), "quantity_mt", 0.0) or 0.0),
+        fallback=float(
+            getattr(db.get(models.Rfq, int(contract.rfq_id)), "quantity_mt", 0.0) or 0.0
+        ),
     )
     if remaining_qty <= 0:
         return
@@ -225,12 +235,7 @@ def list_rfqs(
     if include_invitations:
         q = q.options(selectinload(models.Rfq.invitations))
 
-    rfqs = (
-        q.order_by(models.Rfq.created_at.desc())
-        .offset(int(offset))
-        .limit(safe_limit)
-        .all()
-    )
+    rfqs = q.order_by(models.Rfq.created_at.desc()).offset(int(offset)).limit(safe_limit).all()
 
     return rfqs
 
@@ -819,7 +824,9 @@ def award_quote(
     # Persist the contract → exposure links for traceability (PO vs SO origin).
     # Note: this does not change Exposure status; it is an audit-style linkage.
     for c in created_contracts:
-        _link_contract_to_exposures(db=db, contract=c, deal_id=int(deal_id), rfq_period=str(rfq.period))
+        _link_contract_to_exposures(
+            db=db, contract=c, deal_id=int(deal_id), rfq_period=str(rfq.period)
+        )
 
     db.commit()
     logger.info(

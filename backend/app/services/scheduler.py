@@ -10,8 +10,8 @@ from sqlalchemy import text
 
 from app import models
 from app.database import SessionLocal
-from app.services.westmetall import as_of_datetime_utc, fetch_westmetall_daily_rows
 from app.services.finance_pipeline_daily import execute_finance_pipeline_daily
+from app.services.westmetall import as_of_datetime_utc, fetch_westmetall_daily_rows
 
 logger = logging.getLogger("alcast.scheduler")
 
@@ -218,7 +218,10 @@ class DailyJobRunner:
                             )
                             logger.info(
                                 "finance_pipeline_daily_ok",
-                                extra={"as_of_date": as_of.date().isoformat(), "result": str(result)},
+                                extra={
+                                    "as_of_date": as_of.date().isoformat(),
+                                    "result": str(result),
+                                },
                             )
                         else:
                             logger.info(

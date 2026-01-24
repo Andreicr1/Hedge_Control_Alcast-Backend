@@ -346,7 +346,9 @@ def build_leg_text_pt(leg: Leg, cal: HolidayCalendar) -> str:
 
     if leg.price_type == PriceType.FIX:
         if leg.fixing_date:
-            return f"{side} de {qty} MT de {product}, Data de Fixação: {fmt_date_pt(leg.fixing_date)}"
+            return (
+                f"{side} de {qty} MT de {product}, Data de Fixação: {fmt_date_pt(leg.fixing_date)}"
+            )
         return f"{side} de {qty} MT de {product}, Preço fixo".strip()
 
     if leg.price_type == PriceType.C2R:
@@ -587,7 +589,9 @@ def generate_rfq_text(
         ppt: Optional[date] = None
         for candidate in (
             l1_adj if l1_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER) else None,
-            l2_adj if l2_adj and l2_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER) else None,
+            l2_adj
+            if l2_adj and l2_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER)
+            else None,
             l1_adj,
             l2_adj,
         ):
@@ -643,14 +647,20 @@ def generate_rfq_text(
                 )
         else:
             fix_types = {PriceType.FIX, PriceType.C2R}
-            if l1_adj.price_type in fix_types and l2_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER):
+            if l1_adj.price_type in fix_types and l2_adj.price_type in (
+                PriceType.AVG,
+                PriceType.AVG_INTER,
+            ):
                 payoff_pt = build_expected_payoff_text_pt(
                     fixed_leg=l1_adj,
                     other_leg=l2_adj,
                     cal=cal,
                     company_label=company_label_for_payoff,
                 )
-            elif l2_adj.price_type in fix_types and l1_adj.price_type in (PriceType.AVG, PriceType.AVG_INTER):
+            elif l2_adj.price_type in fix_types and l1_adj.price_type in (
+                PriceType.AVG,
+                PriceType.AVG_INTER,
+            ):
                 payoff_pt = build_expected_payoff_text_pt(
                     fixed_leg=l2_adj,
                     other_leg=l1_adj,

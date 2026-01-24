@@ -56,7 +56,9 @@ def resolve_exposure_kyc_gate(*, db: Session, exposure: models.Exposure) -> Trea
         from app.services.so_kyc_gate import resolve_so_kyc_gate
 
         res = resolve_so_kyc_gate(db=db, so_id=int(exposure.source_id))
-        return TreasuryKycGateResult(allowed=res.allowed, reason_code=res.reason_code, details=res.details)
+        return TreasuryKycGateResult(
+            allowed=res.allowed, reason_code=res.reason_code, details=res.details
+        )
 
     if exposure.source_type == models.MarketObjectType.po:
         po = db.get(models.PurchaseOrder, int(exposure.source_id))
@@ -153,7 +155,9 @@ def create_treasury_decision(
     return td
 
 
-def list_treasury_decisions(*, db: Session, exposure_id: int | None = None) -> list[models.TreasuryDecision]:
+def list_treasury_decisions(
+    *, db: Session, exposure_id: int | None = None
+) -> list[models.TreasuryDecision]:
     q = db.query(models.TreasuryDecision)
     if exposure_id is not None:
         q = q.filter(models.TreasuryDecision.exposure_id == int(exposure_id))

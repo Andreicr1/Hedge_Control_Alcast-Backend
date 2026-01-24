@@ -62,7 +62,8 @@ def _make_client_and_sessionmaker(role: models.RoleName = models.RoleName.financ
 def test_human_comment_create_sets_thread_key_and_is_listed():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    r = client.post("/api/timeline/human/comments",
+    r = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -89,7 +90,8 @@ def test_human_comment_create_sets_thread_key_and_is_listed():
 def test_human_comment_finance_visibility_requires_financeiro_or_admin():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
-    r = client.post("/api/timeline/human/comments",
+    r = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -138,7 +140,8 @@ def test_human_comment_idempotency_returns_same_event():
 def test_human_comment_denies_auditoria():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.auditoria)
 
-    r = client.post("/api/timeline/human/comments",
+    r = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -152,7 +155,8 @@ def test_human_comment_denies_auditoria():
 def test_human_comment_mentions_are_normalized_and_emit_human_mentioned_events():
     client, SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    r = client.post("/api/timeline/human/comments",
+    r = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -186,7 +190,8 @@ def test_human_comment_mentions_are_normalized_and_emit_human_mentioned_events()
         db.close()
 
     # Second call with same idempotency must not duplicate mention events.
-    r2 = client.post("/api/timeline/human/comments",
+    r2 = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -217,7 +222,8 @@ def test_human_comment_mentions_are_normalized_and_emit_human_mentioned_events()
 def test_human_comment_correction_creates_superseding_event_and_is_listed():
     client, SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    base = client.post("/api/timeline/human/comments",
+    base = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -229,7 +235,8 @@ def test_human_comment_correction_creates_superseding_event_and_is_listed():
     assert base.status_code == 201
     base_event = base.json()
 
-    corr = client.post("/api/timeline/human/comments/corrections",
+    corr = client.post(
+        "/api/timeline/human/comments/corrections",
         json={
             "supersedes_event_id": base_event["id"],
             "body": "corrected @User@Test.com",
@@ -279,7 +286,8 @@ def test_human_comment_correction_creates_superseding_event_and_is_listed():
 def test_human_comment_correction_idempotency_returns_same_event_and_no_duplicate_mentions():
     client, SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    base = client.post("/api/timeline/human/comments",
+    base = client.post(
+        "/api/timeline/human/comments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -343,7 +351,8 @@ def test_human_comment_correction_denies_auditoria():
     finally:
         db.close()
 
-    r = client.post("/api/timeline/human/comments/corrections",
+    r = client.post(
+        "/api/timeline/human/comments/corrections",
         json={"supersedes_event_id": supersedes_id, "body": "blocked"},
     )
     assert r.status_code == 403
@@ -369,7 +378,8 @@ def test_human_comment_correction_finance_visibility_requires_financeiro_or_admi
     finally:
         db.close()
 
-    r = client.post("/api/timeline/human/comments/corrections",
+    r = client.post(
+        "/api/timeline/human/comments/corrections",
         json={"supersedes_event_id": supersedes_id, "body": "denied"},
     )
     assert r.status_code == 403
@@ -378,7 +388,8 @@ def test_human_comment_correction_finance_visibility_requires_financeiro_or_admi
 def test_human_comment_correction_404_when_superseded_not_found():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    r = client.post("/api/timeline/human/comments/corrections",
+    r = client.post(
+        "/api/timeline/human/comments/corrections",
         json={"supersedes_event_id": 999_999, "body": "nope"},
     )
     assert r.status_code == 404

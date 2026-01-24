@@ -133,7 +133,9 @@ def _bulk_mtm_prices_d_minus_1(
     return out
 
 
-def _safe_date_for_order(*, expected_delivery_date: date | None, fixing_deadline: date | None) -> date:
+def _safe_date_for_order(
+    *, expected_delivery_date: date | None, fixing_deadline: date | None
+) -> date:
     if expected_delivery_date is not None:
         return expected_delivery_date
     if fixing_deadline is not None:
@@ -436,7 +438,9 @@ def build_cashflow_analytic_lines(
 
     # ---- Exposures (risk) ----
     e_q = db.query(models.Exposure).filter(
-        models.Exposure.status.in_([models.ExposureStatus.open, models.ExposureStatus.partially_hedged])
+        models.Exposure.status.in_(
+            [models.ExposureStatus.open, models.ExposureStatus.partially_hedged]
+        )
     )
     if filters.start_date is not None:
         e_q = e_q.filter(
@@ -463,7 +467,10 @@ def build_cashflow_analytic_lines(
     if exposures:
         exp_ids = [int(e.id) for e in exposures]
         rows = (
-            db.query(models.HedgeExposure.exposure_id, func.coalesce(func.sum(models.HedgeExposure.quantity_mt), 0.0))
+            db.query(
+                models.HedgeExposure.exposure_id,
+                func.coalesce(func.sum(models.HedgeExposure.quantity_mt), 0.0),
+            )
             .filter(models.HedgeExposure.exposure_id.in_(sorted(set(exp_ids))))
             .group_by(models.HedgeExposure.exposure_id)
             .all()
@@ -477,13 +484,19 @@ def build_cashflow_analytic_lines(
     so_by_id: dict[int, models.SalesOrder] = {}
     po_by_id: dict[int, models.PurchaseOrder] = {}
     if exposures:
-        so_ids = [int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.so]
-        po_ids = [int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.po]
+        so_ids = [
+            int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.so
+        ]
+        po_ids = [
+            int(e.source_id) for e in exposures if e.source_type == models.MarketObjectType.po
+        ]
         if so_ids:
             for so in db.query(models.SalesOrder).filter(models.SalesOrder.id.in_(so_ids)).all():
                 so_by_id[int(so.id)] = so
         if po_ids:
-            for po in db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id.in_(po_ids)).all():
+            for po in (
+                db.query(models.PurchaseOrder).filter(models.PurchaseOrder.id.in_(po_ids)).all()
+            ):
                 po_by_id[int(po.id)] = po
 
     for exp in exposures:
@@ -564,7 +577,9 @@ def build_cashflow_analytic_lines(
         if float(line.unit_price_used) != 0.0:
             continue
 
-        sym = symbol_by_line.get((str(line.entity_type), str(line.entity_id))) or _DEFAULT_LME_SYMBOL
+        sym = (
+            symbol_by_line.get((str(line.entity_type), str(line.entity_id))) or _DEFAULT_LME_SYMBOL
+        )
         px = float(mtm_prices.get(sym) or 0.0)
         if px:
             line.unit_price_used = px

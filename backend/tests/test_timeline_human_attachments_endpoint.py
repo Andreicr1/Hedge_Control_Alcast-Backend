@@ -62,7 +62,8 @@ def _make_client_and_sessionmaker(role: models.RoleName = models.RoleName.financ
 def test_human_attachment_create_sets_thread_key_and_is_listed():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.financeiro)
 
-    r = client.post("/api/timeline/human/attachments",
+    r = client.post(
+        "/api/timeline/human/attachments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -91,7 +92,8 @@ def test_human_attachment_create_sets_thread_key_and_is_listed():
 def test_human_attachment_finance_visibility_requires_financeiro_or_admin():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.comercial)
 
-    r = client.post("/api/timeline/human/attachments",
+    r = client.post(
+        "/api/timeline/human/attachments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -135,7 +137,8 @@ def test_human_attachment_idempotency_returns_same_event():
 def test_human_attachment_denies_auditoria():
     client, _SessionLocal = _make_client_and_sessionmaker(models.RoleName.auditoria)
 
-    r = client.post("/api/timeline/human/attachments",
+    r = client.post(
+        "/api/timeline/human/attachments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -157,7 +160,8 @@ def test_human_attachment_upload_then_add_event_then_download(tmp_path, monkeypa
 
     monkeypatch.setattr(tas, "storage_root", lambda: tmp_path)
 
-    up = client.post("/api/timeline/human/attachments/upload",
+    up = client.post(
+        "/api/timeline/human/attachments/upload",
         data={"visibility": "all"},
         files={"file": ("hello.txt", b"hello", "text/plain")},
     )
@@ -166,7 +170,8 @@ def test_human_attachment_upload_then_add_event_then_download(tmp_path, monkeypa
     assert meta["file_id"].startswith("file_")
     assert meta["checksum"].startswith("sha256:")
 
-    ev = client.post("/api/timeline/human/attachments",
+    ev = client.post(
+        "/api/timeline/human/attachments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,
@@ -194,14 +199,16 @@ def test_human_attachment_download_enforces_visibility(tmp_path, monkeypatch):
 
     monkeypatch.setattr(tas, "storage_root", lambda: tmp_path)
 
-    up = client.post("/api/timeline/human/attachments/upload",
+    up = client.post(
+        "/api/timeline/human/attachments/upload",
         data={"visibility": "finance"},
         files={"file": ("secret.txt", b"secret", "text/plain")},
     )
     assert up.status_code == 201
     meta = up.json()
 
-    ev = client.post("/api/timeline/human/attachments",
+    ev = client.post(
+        "/api/timeline/human/attachments",
         json={
             "subject_type": "rfq",
             "subject_id": 123,

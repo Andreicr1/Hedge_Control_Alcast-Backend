@@ -7,12 +7,11 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-1234567890")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ENVIRONMENT", "test")
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
-import pytest
 
 from app import models
 from app.api import deps

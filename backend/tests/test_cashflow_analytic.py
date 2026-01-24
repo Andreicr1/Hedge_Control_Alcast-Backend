@@ -16,7 +16,6 @@ from app.database import Base
 from app.main import app
 from app.models.domain import RoleName
 
-
 engine = create_engine(
     os.environ["DATABASE_URL"],
     connect_args={"check_same_thread": False},
@@ -147,20 +146,26 @@ def test_cashflow_analytic_respects_fix_vs_variable_and_exposure_gap():
     lines = r.json()
     assert isinstance(lines, list)
 
-    so_fix = next(x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-FIX-1")
+    so_fix = next(
+        x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-FIX-1"
+    )
     assert so_fix["valuation_method"] == "fixed"
     assert so_fix["confidence"] == "deterministic"
     assert so_fix["direction"] == "inflow"
     assert so_fix["amount"] == 2000.0
 
-    so_avg = next(x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-AVG-1")
+    so_avg = next(
+        x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-AVG-1"
+    )
     assert so_avg["valuation_method"] == "mtm"
     assert so_avg["confidence"] == "estimated"
     assert so_avg["valuation_reference_date"] == "2025-01-14"
     assert so_avg["unit_price_used"] == 100.0
     assert so_avg["amount"] == 500.0
 
-    po_c2r = next(x for x in lines if x["entity_type"] == "po" and x["source_reference"] == "PO-C2R-1")
+    po_c2r = next(
+        x for x in lines if x["entity_type"] == "po" and x["source_reference"] == "PO-C2R-1"
+    )
     assert po_c2r["valuation_method"] == "mtm"
     assert po_c2r["confidence"] == "estimated"
     assert po_c2r["direction"] == "outflow"
@@ -223,7 +228,9 @@ def test_cashflow_analytic_accepts_close_prices_for_cash_symbols():
     assert r.status_code == 200
     lines = r.json()
 
-    so = next(x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-AVG-CASH-1")
+    so = next(
+        x for x in lines if x["entity_type"] == "so" and x["source_reference"] == "SO-AVG-CASH-1"
+    )
     assert so["valuation_method"] == "mtm"
     assert so["confidence"] == "estimated"
     assert so["valuation_reference_date"] == "2025-01-14"

@@ -78,7 +78,8 @@ def test_pnl_get_aggregated_allows_admin():
 
 def test_pnl_snapshot_post_allows_financeiro_dry_run():
     app.dependency_overrides[deps.get_current_user] = lambda: _stub_user(RoleName.financeiro)
-    r = client.post("/api/pnl/snapshots",
+    r = client.post(
+        "/api/pnl/snapshots",
         json={"as_of_date": "2026-01-01", "filters": {}, "dry_run": True},
     )
     assert r.status_code == 200
@@ -91,7 +92,8 @@ def test_pnl_snapshot_post_blocks_auditoria_writes():
         RoleName.auditoria
     )
 
-    r = client.post("/api/pnl/snapshots",
+    r = client.post(
+        "/api/pnl/snapshots",
         json={"as_of_date": "2026-01-01", "filters": {}, "dry_run": False},
     )
     assert r.status_code == 403
@@ -103,7 +105,8 @@ def test_pnl_snapshot_emits_timeline_idempotent_post_commit():
 
     headers = {"X-Request-ID": "123e4567-e89b-12d3-a456-426614174000"}
 
-    r1 = client.post("/api/pnl/snapshots",
+    r1 = client.post(
+        "/api/pnl/snapshots",
         json={"as_of_date": "2026-01-01", "filters": {}, "dry_run": False},
         headers=headers,
     )
@@ -112,7 +115,8 @@ def test_pnl_snapshot_emits_timeline_idempotent_post_commit():
     assert body1["kind"] == "materialized"
     inputs_hash = body1["inputs_hash"]
 
-    r2 = client.post("/api/pnl/snapshots",
+    r2 = client.post(
+        "/api/pnl/snapshots",
         json={"as_of_date": "2026-01-01", "filters": {}, "dry_run": False},
         headers=headers,
     )
