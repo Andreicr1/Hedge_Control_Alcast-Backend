@@ -82,9 +82,11 @@ class _JwksCache:
 _JWKS_CACHE = _JwksCache()
 
 
-def _build_key_from_jwk(jwk_dict: Dict[str, Any]) -> Key:
+def _build_key_from_jwk(jwk_dict: Dict[str, Any], *, algorithm: str) -> Key:
     try:
-        return construct(jwk_dict)
+        # Entra JWKS keys may not include an explicit "alg" field.
+        # Passing the token algorithm avoids inference issues inside python-jose.
+        return construct(jwk_dict, algorithm=algorithm)
     except Exception as e:
         raise EntraTokenValidationError("Failed to construct JWK") from e
 
@@ -113,7 +115,7 @@ def decode_and_validate_entra_access_token(
         raise EntraTokenValidationError("Unsupported token algorithm")
 
     jwk_dict = _JWKS_CACHE.get_jwk(cfg.jwks_url, kid=kid, refresh_seconds=cfg.jwks_refresh_seconds)
-    key = _build_key_from_jwk(jwk_dict)
+    key = _build_key_from_jwk(jwk_dict, algorithm=alg)
 
     def _norm(s: str) -> str:
         return str(s or "").strip().rstrip("/")
