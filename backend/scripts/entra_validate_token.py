@@ -60,10 +60,35 @@ def main() -> int:
     parser.add_argument('--pretty', action='store_true', help='Pretty-print claims JSON')
     args = parser.parse_args()
 
+    tenant_id = str(settings.entra_tenant_id or '').strip()
+    raw_aud = str(settings.entra_audience or '').strip()
+    raw_iss = str(settings.entra_issuer or '').strip()
+
+    def _split_csv(s: str) -> list[str]:
+        parts: list[str] = []
+        for chunk in (s or '').replace(';', ',').split(','):
+            v = str(chunk).strip()
+            if v:
+                parts.append(v)
+        return parts
+
+    audiences = _split_csv(raw_aud)
+    if raw_aud and raw_aud.lower().startswith('api://'):
+        maybe_guid = raw_aud[6:].strip().strip('/')
+        if maybe_guid:
+            audiences.append(maybe_guid)
+    elif raw_aud and raw_aud.count('-') >= 4:
+        audiences.append(f'api://{raw_aud}')
+
+    issuers = _split_csv(raw_iss)
+    if tenant_id and tenant_id.count('-') >= 4:
+        issuers.append(f'https://login.microsoftonline.com/{tenant_id}/v2.0')
+        issuers.append(f'https://sts.windows.net/{tenant_id}/')
+
     cfg = EntraValidationSettings(
-        tenant_id=str(settings.entra_tenant_id or '').strip(),
-        audience=str(settings.entra_audience or '').strip(),
-        issuer=str(settings.entra_issuer or '').strip(),
+        tenant_id=tenant_id,
+        audiences=audiences,
+        issuers=issuers,
         jwks_url=str(settings.entra_jwks_url or '').strip(),
     )
 

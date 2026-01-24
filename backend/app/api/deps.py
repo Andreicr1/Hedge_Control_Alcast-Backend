@@ -32,10 +32,38 @@ _TOKEN_OPT_DEP = Depends(oauth2_optional)
 
 
 def _entra_cfg() -> EntraValidationSettings:
+    tenant_id = str(settings.entra_tenant_id or "").strip()
+    raw_aud = str(settings.entra_audience or "").strip()
+    raw_iss = str(settings.entra_issuer or "").strip()
+
+    def _split_csv(s: str) -> list[str]:
+        # Allow comma/semicolon separated values in env.
+        parts: list[str] = []
+        for chunk in (s or "").replace(";", ",").split(","):
+            v = str(chunk).strip()
+            if v:
+                parts.append(v)
+        return parts
+
+    # Audiences: accept either GUID or api://GUID depending on how the API was configured.
+    audiences = _split_csv(raw_aud)
+    if raw_aud and raw_aud.lower().startswith("api://"):
+        maybe_guid = raw_aud[6:].strip().strip("/")
+        if maybe_guid:
+            audiences.append(maybe_guid)
+    elif raw_aud and raw_aud.count("-") >= 4:
+        audiences.append(f"api://{raw_aud}")
+
+    # Issuers: accept both v1 and v2 issuer shapes for a tenant.
+    issuers = _split_csv(raw_iss)
+    if tenant_id and tenant_id.count("-") >= 4:
+        issuers.append(f"https://login.microsoftonline.com/{tenant_id}/v2.0")
+        issuers.append(f"https://sts.windows.net/{tenant_id}/")
+
     return EntraValidationSettings(
-        tenant_id=str(settings.entra_tenant_id or "").strip(),
-        audience=str(settings.entra_audience or "").strip(),
-        issuer=str(settings.entra_issuer or "").strip(),
+        tenant_id=tenant_id,
+        audiences=audiences,
+        issuers=issuers,
         jwks_url=str(settings.entra_jwks_url or "").strip(),
     )
 
@@ -162,15 +190,19 @@ def get_current_user(db: Session = _DB_DEP, token: str = _TOKEN_DEP) -> User:
 
     if alg.upper().startswith("RS"):
         if mode not in {"entra", "both"}:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-            )
+            detail = "Invalid credentials"
+            env = str(getattr(settings, "environment", "") or "").lower()
+            if env in {"dev", "development", "test"}:
+                detail = "AUTH_MODE=local does not accept Entra (RS*) tokens. Set AUTH_MODE=entra or both."
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
         try:
             claims = decode_and_validate_entra_access_token(token, _entra_cfg())
-        except EntraTokenValidationError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-            )
+        except EntraTokenValidationError as e:
+            detail = "Invalid credentials"
+            env = str(getattr(settings, "environment", "") or "").lower()
+            if env in {"dev", "development", "test"}:
+                detail = f"Invalid Entra token: {str(e)}"
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
         return _get_or_create_user_from_entra_claims(db, claims)
 
     # Default: treat as local token.

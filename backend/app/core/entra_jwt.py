@@ -25,8 +25,8 @@ from jose.jwk import construct
 @dataclass
 class EntraValidationSettings:
     tenant_id: str
-    audience: str
-    issuer: str
+    audiences: list[str]
+    issuers: list[str]
     jwks_url: str
     # Refresh interval in seconds; Entra rotates keys periodically.
     jwks_refresh_seconds: int = 24 * 60 * 60
@@ -115,17 +115,29 @@ def decode_and_validate_entra_access_token(
     jwk_dict = _JWKS_CACHE.get_jwk(cfg.jwks_url, kid=kid, refresh_seconds=cfg.jwks_refresh_seconds)
     key = _build_key_from_jwk(jwk_dict)
 
+    def _norm(s: str) -> str:
+        return str(s or "").strip().rstrip("/")
+
+    def _normalize_list(values: list[str]) -> list[str]:
+        out: list[str] = []
+        for v in values or []:
+            nv = _norm(v)
+            if nv and nv not in out:
+                out.append(nv)
+        return out
+
+    allowed_issuers = set(_normalize_list(cfg.issuers))
+    allowed_audiences = set(_normalize_list(cfg.audiences))
+
     try:
         pem = key.to_pem().decode("utf-8")
         claims = jwt.decode(
             token,
             pem,
             algorithms=[alg],
-            audience=cfg.audience,
-            issuer=cfg.issuer,
             options={
-                "verify_aud": True,
-                "verify_iss": True,
+                "verify_aud": False,
+                "verify_iss": False,
                 "verify_signature": True,
                 "verify_exp": True,
             },
@@ -136,6 +148,22 @@ def decode_and_validate_entra_access_token(
         raise EntraTokenValidationError("Invalid token claims") from e
     except JWTError as e:
         raise EntraTokenValidationError("Invalid token") from e
+
+    # Manual issuer validation (support v1 + v2 issuers).
+    iss = _norm(str(claims.get("iss") or ""))
+    if allowed_issuers and iss not in allowed_issuers:
+        raise EntraTokenValidationError("Invalid issuer")
+
+    # Manual audience validation (allow GUID or api://GUID depending on setup).
+    aud_claim = claims.get("aud")
+    aud_values: list[str]
+    if isinstance(aud_claim, list):
+        aud_values = [str(v) for v in aud_claim if v is not None]
+    else:
+        aud_values = [str(aud_claim)]
+    aud_norm = {_norm(v) for v in aud_values if _norm(v)}
+    if allowed_audiences and not (aud_norm & allowed_audiences):
+        raise EntraTokenValidationError("Invalid audience")
 
     # Extra safety: enforce tenant for single-tenant deployments.
     tid = str(claims.get("tid") or "")
