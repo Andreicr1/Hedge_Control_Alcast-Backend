@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 import os
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-1234567890")
