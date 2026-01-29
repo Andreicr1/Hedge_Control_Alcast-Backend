@@ -19,9 +19,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default=os.getenv("PROJECT_NAME", "Hedge Control API"))
     environment: str = Field(default=os.getenv("ENVIRONMENT", "dev"), env="ENVIRONMENT")
     build_version: Optional[str] = Field(default=os.getenv("BUILD_VERSION"), env="BUILD_VERSION")
-    database_url: str = Field(
-        default=os.getenv("DATABASE_URL", "")
-    )
+    database_url: str = Field(default=os.getenv("DATABASE_URL", ""))
     # API prefix used by FastAPI router include. MUST be configured via API_V1_STR (e.g. "/api/v1").
     api_prefix: str = Field(default=os.getenv("API_V1_STR", "/api"), env="API_V1_STR")
     enable_docs: bool = Field(default=True, env="ENABLE_DOCS")
