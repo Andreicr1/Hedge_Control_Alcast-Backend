@@ -22,7 +22,7 @@ def upgrade() -> None:
     id_col = sa.Column("id", sa.String(length=36), primary_key=True)
     id_server_default = None
 
-    # On Postgres/Supabase, prefer server-side UUID generation.
+    # On Postgres, prefer server-side UUID generation.
     if dialect == "postgresql":
         try:
             id_col = sa.Column("id", sa.Uuid(), primary_key=True)

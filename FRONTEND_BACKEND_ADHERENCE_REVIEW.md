@@ -4,8 +4,8 @@
 **Tipo:** Review-only (sem alterações de código)  
 **Escopo:** Comparação entre capacidades do frontend vs APIs/comportamentos do backend  
 **Repositórios analisados:**
-- Backend: `c:\Projetos\Hedge_Control_Alcast-Backend\`
-- Frontend: `c:\Projetos\Hedge_Control_Alcast-Frontend\`
+- Backend: Hedge_Control_Alcast-Backend
+- Frontend: Hedge_Control_Alcast_Frontend
 
 ---
 
@@ -348,7 +348,7 @@ mtm: {
 
 ## Inventário de Arquivos Analisados
 
-### Frontend (`c:\Projetos\Hedge_Control_Alcast-Frontend\`)
+### Frontend (Hedge_Control_Alcast_Frontend)
 
 | Caminho | Propósito |
 |---------|-----------|
@@ -362,7 +362,7 @@ mtm: {
 | `src/app/components/RequireRole.tsx` | Guard de autorização |
 | `src/app/App.tsx` | Roteamento principal |
 
-### Backend (`c:\Projetos\Hedge_Control_Alcast-Backend\`)
+### Backend (Hedge_Control_Alcast-Backend)
 
 | Caminho | Propósito |
 |---------|-----------|

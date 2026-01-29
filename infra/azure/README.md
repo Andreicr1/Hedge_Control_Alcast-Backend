@@ -98,7 +98,7 @@ Se estiver usando `swa deploy` local, recomenda-se fixar Node 18 para a API:
 No Windows (PowerShell):
 
 ```powershell
-cd c:\Projetos\Hedge_Control_Alcast-Backend\infra\azure
+Set-Location (Join-Path $PWD 'infra/azure')
 az bicep build --file .\main.bicep
 ```
 

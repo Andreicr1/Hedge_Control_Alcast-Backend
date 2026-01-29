@@ -20,8 +20,7 @@ def upgrade() -> None:
     conn = op.get_bind()
     dialect = conn.dialect.name
 
-    # We keep these as VARCHAR columns (native_enum=False in models) to stay compatible
-    # with Supabase schemas and SQLite dev DBs.
+    # We keep these as VARCHAR columns (native_enum=False in models) for portability.
     with op.batch_alter_table("deals") as batch:
         batch.add_column(sa.Column("company", sa.String(length=64), nullable=True))
         batch.add_column(sa.Column("economic_period", sa.String(length=32), nullable=True))

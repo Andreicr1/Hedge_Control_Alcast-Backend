@@ -56,35 +56,33 @@ Local validator (same code path as the API): [scripts/entra_validate_token.py](s
 
 - Copy `.env.example` → `.env` and fill the values.
 
-1. Run the API
+## Run the API (Azure)
 
-- `uvicorn app.main:app --reload --port 8000`
+This project is **Azure-only**. The API is expected to run in **Azure Container Apps** and connect to **Azure Database for PostgreSQL**.
 
-If you prefer, you can use the helper scripts:
-
-- `setup-dev.bat`
-- `start-dev.bat`
-
-(Ensure those scripts run with Python 3.11 on PATH.)
+- Public API base is exposed via Azure Static Web Apps under `/api/*` (recommended entrypoint for browsers).
+- Operational tasks (migrations/seed) should be executed against the Azure environment.
 
 ## Quality Gates
 
-## Demo seed: LME prices (dev only)
+## Demo seed: LME prices
 
 If the Dashboard shows "Sem dados" for LME widgets, your database likely has no rows in `lme_prices`.
 
-To generate a small demo dataset locally (so charts/live cards render), run from `backend/`:
+To generate a small demo dataset (so charts/live cards render), run from `backend/` against the configured `DATABASE_URL`:
 
 - `python scripts/seed_lme_prices.py --days 120`
 
-This script uses the configured `DATABASE_URL` (from `.env`). It is intended for dev only.
+This script uses the configured `DATABASE_URL` (from `.env`).
 
 ## LME ingest: Excel -> API (automation-friendly)
 
 For real market data (not synthetic seed), use the operational script that reads your local `market.xlsx`
 and POSTs JSON into the backend ingestion endpoint:
 
-- `python scripts/ingest_lme_from_excel.py --xlsx "C:\\path\\to\\market.xlsx" --api-base-url "https://<your-render>/api" --token "<INGEST_TOKEN>"`
+- `python scripts/ingest_lme_from_excel.py --xlsx "C:\\path\\to\\market.xlsx" --api-base-url "https://<your-swa-host>/api" --token "<INGEST_TOKEN>"`
+
+- `python scripts/ingest_lme_from_excel.py --xlsx "C:\\path\\to\\market.xlsx" --api-base-url "https://<your-containerapp-host>/api" --token "<INGEST_TOKEN>"`
 
 Notes:
 

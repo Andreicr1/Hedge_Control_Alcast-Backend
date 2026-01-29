@@ -61,22 +61,22 @@ def _env_guard(*, allow_production: bool) -> None:
         )
 
 
-def _db_guard(*, allow_sqlite: bool, require_supabase: bool) -> None:
+def _db_guard() -> None:
     from app.config import settings
 
     db_url = str(settings.database_url or "").strip()
     low = db_url.lower()
 
-    if low.startswith("sqlite") and not allow_sqlite:
+    if not low:
         raise SystemExit(
-            "Refusing to seed a SQLite database. Configure DATABASE_URL to your Supabase Postgres URL "
-            "(recommended), or re-run with --allow-sqlite for local-only seeding."
+            "Refusing to seed because DATABASE_URL is empty. "
+            "Set DATABASE_URL to your Azure Database for PostgreSQL (or other Postgres) connection string."
         )
 
-    if require_supabase and (not low.startswith("sqlite")) and ("supabase" not in low):
+    if low.startswith("sqlite"):
         raise SystemExit(
-            "Refusing to seed because DATABASE_URL does not look like a Supabase host. "
-            "Set DATABASE_URL to your Supabase connection string, or re-run with --no-require-supabase."
+            "Refusing to seed a SQLite database. Configure DATABASE_URL to your Azure Database for PostgreSQL "
+            "connection string."
         )
 
 
@@ -1806,23 +1806,11 @@ def main() -> int:
         action="store_true",
         help="Allow running even when ENVIRONMENT=production/prod",
     )
-    parser.add_argument(
-        "--allow-sqlite",
-        action="store_true",
-        help="Allow seeding when DATABASE_URL is SQLite (local-only).",
-    )
-    parser.add_argument(
-        "--no-require-supabase",
-        dest="require_supabase",
-        action="store_false",
-        default=True,
-        help="Allow non-Supabase Postgres DATABASE_URL values.",
-    )
 
     args = parser.parse_args()
 
     _env_guard(allow_production=bool(args.allow_production))
-    _db_guard(allow_sqlite=bool(args.allow_sqlite), require_supabase=bool(args.require_supabase))
+    _db_guard()
 
     scale = float(args.scale)
     if scale <= 0:

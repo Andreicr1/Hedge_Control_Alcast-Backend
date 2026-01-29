@@ -6,7 +6,7 @@ It sends BOTH headers:
 - x-hc-authorization: Bearer <token>
 
 Usage (PowerShell):
-  cd c:\Projetos\Hedge_Control_Alcast-Backend\backend
+    Set-Location (Join-Path $PWD 'backend')
   .\.venv311\Scripts\python.exe scripts\smoke_swa_auth_me.py --base-url "https://<your-swa-host>" --token "<ACCESS_TOKEN>"
 
 Tip:

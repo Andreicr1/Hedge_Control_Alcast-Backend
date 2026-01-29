@@ -64,14 +64,20 @@ require_non_empty() {
   fi
 }
 
-# Render Secret Files support
+# Secret file support
+#
+# This entrypoint supports providing secrets either as environment variables or as files:
+# - <VAR_NAME>_FILE points to a file path
+# - /etc/secrets/<VAR_NAME> is a conventional mounted-secrets location
+#
+# This works well for Azure Container Apps (env vars / secret mounts) and other container platforms.
 read_secret_file DATABASE_URL || true
 read_secret_file SECRET_KEY || true
 read_secret_file CORS_ORIGINS || true
 
 # Fail fast with a clear message (avoids long Pydantic traceback on import)
-require_non_empty DATABASE_URL "Create a Render Secret File named DATABASE_URL (or set DATABASE_URL_FILE)."
-require_non_empty SECRET_KEY "Create a Render Secret File named SECRET_KEY (or set SECRET_KEY_FILE)."
+require_non_empty DATABASE_URL "Set DATABASE_URL (or set DATABASE_URL_FILE / mount /etc/secrets/DATABASE_URL)."
+require_non_empty SECRET_KEY "Set SECRET_KEY (or set SECRET_KEY_FILE / mount /etc/secrets/SECRET_KEY)."
 
 if is_weak_secret_key "${SECRET_KEY-}"; then
   echo "[startup] ERROR: SECRET_KEY is missing or looks like a placeholder. Set a long random value (>= 32 chars)." 1>&2

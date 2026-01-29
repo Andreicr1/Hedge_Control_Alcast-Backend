@@ -17,7 +17,7 @@ Key behaviors mirrored from legacy JS:
 - Expected Payoff wording and pay/receive direction based on fixed leg side
 - Resting + Fix (no fixing date) paired with AVG adds “, ppt <date>” to AVG leg
 
-You can wrap this module with FastAPI endpoints (preview/create/send) and persist in Supabase.
+You can wrap this module with FastAPI endpoints (preview/create/send) and persist in Postgres.
 """
 
 from __future__ import annotations

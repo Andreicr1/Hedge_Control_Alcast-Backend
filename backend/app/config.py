@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     environment: str = Field(default=os.getenv("ENVIRONMENT", "dev"), env="ENVIRONMENT")
     build_version: Optional[str] = Field(default=os.getenv("BUILD_VERSION"), env="BUILD_VERSION")
     database_url: str = Field(
-        default=os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/alcast_db")
+        default=os.getenv("DATABASE_URL", "")
     )
     # API prefix used by FastAPI router include. MUST be configured via API_V1_STR (e.g. "/api/v1").
     api_prefix: str = Field(default=os.getenv("API_V1_STR", "/api"), env="API_V1_STR")
@@ -98,19 +98,13 @@ class Settings(BaseSettings):
                 s = s[:-1]
             return s
 
-        # If not provided, default to a safe dev/test list; require explicit config in production.
+        # Azure-only policy:
+        # - Require explicit configuration in production.
+        # - In non-production, default to an empty list (no CORS) to avoid implying local-backend usage.
         if value is None or value == "":
             if env in {"prod", "production"}:
                 raise ValueError("CORS_ORIGINS must be explicitly set in production")
-            return [
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:5175",
-                "http://localhost:3000",
-                "http://127.0.0.1:5173",
-                "http://127.0.0.1:5174",
-                "http://127.0.0.1:5175",
-            ]
+            return []
 
         if isinstance(value, str):
             s = value.strip()
@@ -175,15 +169,11 @@ class Settings(BaseSettings):
 
     @validator("database_url", pre=True)
     def normalize_database_url(cls, v: str) -> str:
-        """Make SQLite relative paths stable across working directories.
+        """Normalize DATABASE_URL for SQLAlchemy/psycopg.
 
-        In dev, we often use sqlite URLs like:
-        - sqlite+pysqlite:///./dev-local.db
-
-        When running `uvicorn` from another folder (e.g. the frontend), the
-        relative path resolves to the wrong place, which looks like "missing
-        tables" at runtime. Convert known relative SQLite URLs to an absolute
-        path rooted at the backend folder.
+        Notes:
+        - Normalizes common Postgres URL schemes to psycopg3.
+        - Keeps SQLite handling for test/dev utilities, but production is Postgres-only.
         """
 
         if v is None:
@@ -194,7 +184,6 @@ class Settings(BaseSettings):
             return s
 
         # Normalize common Postgres URL schemes for psycopg3.
-        # Supabase commonly provides: postgresql://...
         # SQLAlchemy defaults postgresql:// to psycopg2, but we ship psycopg3.
         if s.startswith("postgres://"):
             s = "postgresql://" + s[len("postgres://") :]

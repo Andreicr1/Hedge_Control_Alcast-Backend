@@ -1,4 +1,4 @@
-"""Local operational script: Excel -> JSON -> Render API.
+"""Local operational script: Excel -> JSON -> Azure API.
 
 Architecture notes (by design):
 - This script runs on a Windows machine WITH Excel files.
@@ -26,7 +26,8 @@ Supported Excel formats:
                 are on row 2; use --header-row 2 if needed (the script also auto-detects).
 
 Example usage (PowerShell):
-  $env:API_BASE_URL = "https://<your-render-app>.onrender.com/api"
+    $env:API_BASE_URL = "https://<your-swa-host>/api"  # recommended (SWA Functions proxy)
+    # or: https://<your-container-app-fqdn>/api
   $env:INGEST_TOKEN = "<same token configured on backend>"
     python .\\scripts\\ingest_lme_from_excel.py --xlsx "C:\\lme_market_api\\data\\market.xlsx"
 
