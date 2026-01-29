@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session, joinedload
 from app import models
 from app.api.deps import require_roles
 from app.database import get_db
-from app.schemas import AssignDealRequest, PurchaseOrderCreate, PurchaseOrderRead, PurchaseOrderUpdate
+from app.schemas import (
+    AssignDealRequest,
+    PurchaseOrderCreate,
+    PurchaseOrderRead,
+    PurchaseOrderUpdate,
+)
 from app.services.document_numbering import next_monthly_number
 from app.services.exposure_engine import (
     close_open_exposures_for_source,
