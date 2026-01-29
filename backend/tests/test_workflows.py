@@ -77,7 +77,17 @@ def test_so_link_validation_and_duplicate_ids(client, db_session, admin_user):
     db_session.commit()
     db_session.refresh(cust)
 
+    deal = models.Deal(
+        currency="USD",
+        status=models.DealStatus.open,
+        lifecycle_status=models.DealLifecycleStatus.open,
+    )
+    db_session.add(deal)
+    db_session.commit()
+    db_session.refresh(deal)
+
     payload = {
+        "deal_id": deal.id,
         "customer_id": cust.id,
         "total_quantity_mt": 50.0,
         "pricing_type": "AVG",

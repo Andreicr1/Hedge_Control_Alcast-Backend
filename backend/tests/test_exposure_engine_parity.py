@@ -90,10 +90,11 @@ def test_sales_order_fixed_does_not_create_exposure_and_net_exposure_empty():
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
@@ -127,10 +128,11 @@ def test_sales_order_switch_floating_to_fixed_closes_exposure_and_emits_timeline
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
@@ -220,10 +222,11 @@ def test_sales_order_cancelled_closes_exposure_and_cancels_tasks():
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
@@ -269,10 +272,11 @@ def test_sales_order_delete_closes_exposure_and_emits_timeline():
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
@@ -318,10 +322,11 @@ def test_sales_order_reconcile_dedupes_multiple_open_exposures():
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
@@ -385,10 +390,11 @@ def test_sales_order_exposure_only_when_active_for_floating(pricing_type: str):
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,
@@ -504,10 +510,11 @@ def test_sales_order_fixed_never_creates_exposure_even_when_active():
 
     db = TestingSessionLocal()
     try:
-        customer, _supplier, _deal = _seed_customer_supplier_and_deal(db=db)
+        customer, _supplier, deal = _seed_customer_supplier_and_deal(db=db)
         request_id = str(uuid.uuid4())
 
         payload = {
+            "deal_id": deal.id,
             "customer_id": customer.id,
             "product": "AL",
             "total_quantity_mt": 10.0,

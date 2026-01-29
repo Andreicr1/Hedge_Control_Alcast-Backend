@@ -219,6 +219,16 @@ def test_purchase_order_list_requires_auth():
 
 def test_sales_order_creation_and_validation():
     app.dependency_overrides[deps.get_current_user] = lambda: get_admin_user()
+    deal_resp = client.post(
+        "/api/deals",
+        json={
+            "reference_name": "Test Deal",
+            "currency": "USD",
+        },
+    )
+    assert deal_resp.status_code == 201
+    deal_id = deal_resp.json()["id"]
+
     cust_resp = client.post(
         "/api/customers",
         json={"name": "Cliente", "code": "C1", "contact_email": "c@c.com", "contact_phone": "321"},
@@ -229,6 +239,7 @@ def test_sales_order_creation_and_validation():
     so_resp = client.post(
         "/api/sales-orders",
         json={
+            "deal_id": deal_id,
             "customer_id": cust_id,
             "product": "Alumínio",
             "total_quantity_mt": 5,
@@ -244,6 +255,7 @@ def test_sales_order_creation_and_validation():
     bad_resp = client.post(
         "/api/sales-orders",
         json={
+            "deal_id": deal_id,
             "customer_id": cust_id,
             "product": "Alumínio",
             "total_quantity_mt": -10,

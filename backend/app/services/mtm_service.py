@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -41,7 +41,7 @@ def _latest_fx_rate(
     row = latest_lme_price_prefer_types(
         db,
         symbol=fx_symbol_norm,
-        as_of=date.today(),
+        as_of=datetime.now(timezone.utc).date(),
         price_types=["close", "official", "live"],
         market="FX",
         source=source,
@@ -86,7 +86,7 @@ def compute_mtm_for_hedge(
     if haircut_pct is not None or price_shift is not None:
         scenario_mtm_value = scenario_diff * hedge.quantity_mt
 
-    if fx_rate:
+    if fx_rate is not None:
         mtm_value *= fx_rate
         if scenario_mtm_value is not None:
             scenario_mtm_value *= fx_rate

@@ -23,6 +23,20 @@ client = TestClient(app)
 def test_sales_orders_list_filters_by_deal_id():
     app.dependency_overrides[deps.get_current_user] = lambda: get_admin_user()
 
+    deal_a_resp = client.post(
+        "/api/deals",
+        json={"reference_name": "Deal A", "currency": "USD"},
+    )
+    assert deal_a_resp.status_code == 201
+    deal_a = deal_a_resp.json()["id"]
+
+    deal_b_resp = client.post(
+        "/api/deals",
+        json={"reference_name": "Deal B", "currency": "USD"},
+    )
+    assert deal_b_resp.status_code == 201
+    deal_b = deal_b_resp.json()["id"]
+
     cust_resp = client.post(
         "/api/customers",
         json={
@@ -38,6 +52,7 @@ def test_sales_orders_list_filters_by_deal_id():
     so1 = client.post(
         "/api/sales-orders",
         json={
+            "deal_id": deal_a,
             "customer_id": cust_id,
             "product": "Alumínio",
             "total_quantity_mt": 5,
@@ -48,8 +63,7 @@ def test_sales_orders_list_filters_by_deal_id():
         },
     )
     assert so1.status_code == 201
-    deal_a = so1.json()["deal_id"]
-    assert isinstance(deal_a, int)
+    assert so1.json()["deal_id"] == deal_a
 
     so2 = client.post(
         "/api/sales-orders",
@@ -69,6 +83,7 @@ def test_sales_orders_list_filters_by_deal_id():
     so3 = client.post(
         "/api/sales-orders",
         json={
+            "deal_id": deal_b,
             "customer_id": cust_id,
             "product": "Alumínio",
             "total_quantity_mt": 9,
@@ -79,8 +94,7 @@ def test_sales_orders_list_filters_by_deal_id():
         },
     )
     assert so3.status_code == 201
-    deal_b = so3.json()["deal_id"]
-    assert isinstance(deal_b, int)
+    assert so3.json()["deal_id"] == deal_b
     assert deal_b != deal_a
 
     filtered = client.get(f"/api/sales-orders?deal_id={deal_a}")
