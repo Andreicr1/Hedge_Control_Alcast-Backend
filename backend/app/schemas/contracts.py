@@ -97,3 +97,18 @@ class ContractExposureLinkRead(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class ContractDocumentRead(BaseModel):
+    id: int
+    contract_id: str
+    version: int
+    filename: str
+    content_type: Optional[str] = None
+    file_size_bytes: int
+    sha256: Optional[str] = None
+    uploaded_at: datetime
+    metadata_json: Optional[dict[str, Any]] = None
+
+    class Config:
+        orm_mode = True

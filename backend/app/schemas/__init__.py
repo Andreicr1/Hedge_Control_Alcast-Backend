@@ -8,6 +8,7 @@ from app.schemas.cashflow_advanced import (
 from app.schemas.contracts import (
     ContractCounterpartyMiniRead,
     ContractDetailRead,
+    ContractDocumentRead,
     ContractExposureLinkRead,
     ContractLegRead,
     ContractRead,
@@ -75,6 +76,7 @@ from app.schemas.pnl import (
     PnlSnapshotExecuteResponse,
     PnlSnapshotRequest,
 )
+from app.schemas.rfq import RfqAwardRequest, RfqQuoteSelect
 from app.schemas.rfq_attempt import (
     RfqSendAttemptCreate,
     RfqSendAttemptRead,
@@ -104,8 +106,6 @@ from app.schemas.workflows import (
     WorkflowDecisionRead,
     WorkflowRequestRead,
 )
-
-from .rfq import RfqAwardRequest, RfqQuoteSelect
 
 __all__ = [
     "SupplierCreate",
@@ -180,6 +180,7 @@ __all__ = [
     "ContractLegRead",
     "ContractCounterpartyMiniRead",
     "ContractExposureLinkRead",
+    "ContractDocumentRead",
     "InboxCounts",
     "InboxNetExposureRow",
     "InboxWorkbenchResponse",

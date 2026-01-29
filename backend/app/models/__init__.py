@@ -2,6 +2,7 @@ from app.models.cashflow_baseline import CashflowBaselineItem, CashflowBaselineR
 from app.models.domain import (
     AuditLog,
     Contract,
+    ContractDocument,
     ContractExposure,
     ContractStatus,
     Counterparty,
@@ -131,6 +132,7 @@ __all__ = [
     "DealLifecycleStatus",
     "ContractStatus",
     "Contract",
+    "ContractDocument",
     "ContractExposure",
     "DocumentOwnerType",
     "KycDocument",

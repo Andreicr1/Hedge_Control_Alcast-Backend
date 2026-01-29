@@ -866,6 +866,39 @@ class Contract(Base):
             raise ValueError("Contract.settlement_date is required when status=settled")
 
 
+class ContractDocument(Base):
+    __tablename__ = "contract_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    contract_id: Mapped[str] = mapped_column(
+        ForeignKey("contracts.contract_id"), nullable=False, index=True
+    )
+
+    # Simple versioning per contract (1..N)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(128))
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+
+    # Storage reference (filesystem path under settings.storage_dir)
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    uploaded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    metadata_json: Mapped[dict | None] = mapped_column(JSON)
+
+    contract = relationship("Contract", viewonly=True)
+    uploaded_by = relationship("User", foreign_keys=[uploaded_by_user_id], lazy="joined")
+
+    __table_args__ = (
+        UniqueConstraint("contract_id", "version", name="uq_contract_documents_contract_version"),
+    )
+
+
 @event.listens_for(Contract, "before_insert")
 def _contract_before_insert(_mapper, _connection, target: Contract):
     target._validate_invariants()

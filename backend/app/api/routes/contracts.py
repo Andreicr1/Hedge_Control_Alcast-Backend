@@ -1,18 +1,69 @@
+import hashlib
+import os
+import uuid
 import calendar
 from datetime import date
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app import models
 from app.api.deps import require_roles
+from app.config import settings
 from app.database import get_db
-from app.schemas import ContractDetailRead, ContractExposureLinkRead, ContractRead
+from app.schemas import (
+    ContractDetailRead,
+    ContractDocumentRead,
+    ContractExposureLinkRead,
+    ContractRead,
+)
 from app.services import contract_mtm_service, pnl_engine
+from app.services.timeline_emitters import correlation_id_from_request_id, emit_timeline_event
 
 router = APIRouter(prefix="/contracts", tags=["contracts"])
+
+
+def _validate_pdf_upload(file: UploadFile) -> tuple[int, str]:
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type")
+
+    file.file.seek(0, os.SEEK_END)
+    size = int(file.file.tell() or 0)
+    file.file.seek(0)
+
+    # Signed contracts can be larger than KYC docs; keep a conservative ceiling.
+    max_bytes = 25 * 1024 * 1024
+    if size <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+    if size > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File too large (max 25MB)",
+        )
+
+    # Basic signature check: PDF magic header
+    head = file.file.read(4)
+    file.file.seek(0)
+    if head != b"%PDF":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid PDF file")
+
+    return size, "application/pdf"
+
+
+def _write_pdf_and_hash(file: UploadFile, dest_path: str) -> str:
+    sha = hashlib.sha256()
+    with open(dest_path, "wb") as f:
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            sha.update(chunk)
+            f.write(chunk)
+    file.file.seek(0)
+    return sha.hexdigest()
 
 
 def _pt_norm(v: Any | None) -> str:
@@ -336,3 +387,176 @@ def list_contract_exposures(
             )
         )
     return out
+
+
+@router.get("/{contract_id}/documents", response_model=list[ContractDocumentRead])
+def list_contract_documents(
+    contract_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        require_roles(models.RoleName.admin, models.RoleName.financeiro, models.RoleName.auditoria)
+    ),
+):
+    if db.get(models.Contract, str(contract_id)) is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    return (
+        db.query(models.ContractDocument)
+        .filter(models.ContractDocument.contract_id == str(contract_id))
+        .order_by(models.ContractDocument.uploaded_at.desc())
+        .all()
+    )
+
+
+@router.post(
+    "/{contract_id}/documents",
+    response_model=ContractDocumentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_contract_document(
+    contract_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        require_roles(models.RoleName.admin, models.RoleName.financeiro)
+    ),
+):
+    contract = db.get(models.Contract, str(contract_id))
+    if contract is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    size, _ = _validate_pdf_upload(file)
+
+    last_version = (
+        db.query(models.ContractDocument.version)
+        .filter(models.ContractDocument.contract_id == str(contract_id))
+        .order_by(models.ContractDocument.version.desc())
+        .limit(1)
+        .scalar()
+    )
+    version = int(last_version or 0) + 1
+
+    storage_root = os.path.abspath(settings.storage_dir)
+    os.makedirs(storage_root, exist_ok=True)
+    doc_dir = os.path.join(storage_root, "contracts", str(contract_id), "documents")
+    os.makedirs(doc_dir, exist_ok=True)
+
+    safe_name = os.path.basename(file.filename or "contract.pdf")
+    if not safe_name.lower().endswith(".pdf"):
+        safe_name = f"{safe_name}.pdf"
+
+    unique_name = f"{uuid.uuid4().hex}_v{version}_{safe_name}"
+    file_path = os.path.join(doc_dir, unique_name)
+    sha256 = _write_pdf_and_hash(file, file_path)
+
+    metadata = {
+        "uploaded_by": getattr(current_user, "email", None),
+        "counterparty_id": int(contract.counterparty_id) if contract.counterparty_id else None,
+    }
+    if getattr(contract, "counterparty", None) is not None:
+        metadata["counterparty_name"] = str(contract.counterparty.name)
+
+    doc = models.ContractDocument(
+        contract_id=str(contract_id),
+        version=version,
+        filename=str(file.filename or safe_name),
+        content_type="application/pdf",
+        file_size_bytes=int(size),
+        sha256=sha256,
+        path=file_path,
+        uploaded_by_user_id=getattr(current_user, "id", None),
+        metadata_json=metadata,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    correlation_id = correlation_id_from_request_id(request.headers.get("X-Request-ID"))
+    emit_timeline_event(
+        db=db,
+        event_type="CONTRACT_DOCUMENT_UPLOADED",
+        subject_type="deal",
+        subject_id=int(contract.deal_id),
+        correlation_id=correlation_id,
+        idempotency_key=f"contract_document:{doc.id}:uploaded",
+        visibility="finance",
+        actor_user_id=getattr(current_user, "id", None),
+        payload={
+            "contract_id": str(contract.contract_id),
+            "contract_number": getattr(contract, "contract_number", None),
+            "deal_id": int(contract.deal_id),
+            "rfq_id": int(contract.rfq_id),
+            "document_id": int(doc.id),
+            "version": int(doc.version),
+            "filename": doc.filename,
+            "content_type": doc.content_type,
+            "file_size_bytes": int(doc.file_size_bytes),
+            "sha256": doc.sha256,
+            "uploaded_by_email": getattr(current_user, "email", None),
+        },
+    )
+
+    return doc
+
+
+@router.get("/{contract_id}/documents/{document_id}/view")
+def view_contract_document(
+    contract_id: str,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        require_roles(models.RoleName.admin, models.RoleName.financeiro, models.RoleName.auditoria)
+    ),
+):
+    doc = (
+        db.query(models.ContractDocument)
+        .filter(
+            models.ContractDocument.id == int(document_id),
+            models.ContractDocument.contract_id == str(contract_id),
+        )
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not os.path.exists(doc.path):
+        raise HTTPException(status_code=404, detail="Document file missing")
+
+    return FileResponse(
+        path=doc.path,
+        media_type=doc.content_type or "application/pdf",
+        filename=doc.filename,
+        headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+    )
+
+
+@router.get("/{contract_id}/documents/{document_id}/download")
+def download_contract_document(
+    contract_id: str,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        require_roles(models.RoleName.admin, models.RoleName.financeiro, models.RoleName.auditoria)
+    ),
+):
+    doc = (
+        db.query(models.ContractDocument)
+        .filter(
+            models.ContractDocument.id == int(document_id),
+            models.ContractDocument.contract_id == str(contract_id),
+        )
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not os.path.exists(doc.path):
+        raise HTTPException(status_code=404, detail="Document file missing")
+
+    return FileResponse(
+        path=doc.path,
+        media_type=doc.content_type or "application/pdf",
+        filename=doc.filename,
+        headers={"Content-Disposition": f'attachment; filename="{doc.filename}"'},
+    )
