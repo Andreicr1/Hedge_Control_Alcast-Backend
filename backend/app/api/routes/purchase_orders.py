@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from app import models
 from app.api.deps import require_roles
 from app.database import get_db
-from app.schemas import PurchaseOrderCreate, PurchaseOrderRead, PurchaseOrderUpdate
+from app.schemas import AssignDealRequest, PurchaseOrderCreate, PurchaseOrderRead, PurchaseOrderUpdate
 from app.services.document_numbering import next_monthly_number
 from app.services.exposure_engine import (
     close_open_exposures_for_source,
@@ -56,6 +56,13 @@ def list_purchase_orders(
 def create_purchase_order(
     payload: PurchaseOrderCreate,
     request: Request,
+    create_deal_if_missing: bool = Query(
+        False,
+        description=(
+            "Legacy escape hatch: when true and deal_id is omitted, "
+            "the API will create a new deal automatically."
+        ),
+    ),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
         require_roles(models.RoleName.admin, models.RoleName.comercial)
@@ -73,8 +80,13 @@ def create_purchase_order(
         deal_id = int(deal.id)
         allocation_type = models.DealAllocationType.manual
     else:
-        # Purchase Orders must always be linked to a deal.
-        # If caller didn't pick one, we create a fresh deal and link automatically.
+        if not create_deal_if_missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="deal_id is required. Create/select a Deal before creating a Purchase Order.",
+            )
+
+        # Legacy mode: if caller didn't pick one, create a fresh deal and link automatically.
         deal = models.Deal(
             commodity=payload.product,
             currency="USD",
@@ -150,6 +162,48 @@ def create_purchase_order(
                 actor_user_id=actor_user_id,
             )
 
+    return po
+
+
+@router.post("/{po_id}/assign-deal", response_model=PurchaseOrderRead)
+def assign_purchase_order_to_deal(
+    po_id: int,
+    payload: AssignDealRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
+    ),
+):
+    po = db.get(models.PurchaseOrder, po_id)
+    if not po:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Purchase Order not found"
+        )
+
+    deal = db.get(models.Deal, int(payload.deal_id))
+    if not deal:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Deal not found")
+
+    po.deal_id = int(deal.id)
+
+    db.query(models.DealLink).filter(
+        models.DealLink.entity_type == models.DealEntityType.po,
+        models.DealLink.entity_id == po.id,
+    ).delete(synchronize_session=False)
+    db.add(
+        models.DealLink(
+            deal_id=int(deal.id),
+            entity_type=models.DealEntityType.po,
+            entity_id=po.id,
+            direction=models.DealDirection.buy,
+            quantity_mt=po.total_quantity_mt,
+            allocation_type=models.DealAllocationType.manual,
+        )
+    )
+
+    db.add(po)
+    db.commit()
+    db.refresh(po)
     return po
 
 

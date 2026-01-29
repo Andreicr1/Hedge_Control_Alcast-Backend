@@ -240,6 +240,10 @@ class SalesOrderBase(BaseModel):
         return v
 
 
+class AssignDealRequest(BaseModel):
+    deal_id: int = Field(..., gt=0)
+
+
 class SalesOrderCreate(SalesOrderBase):
     pass
 

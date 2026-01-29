@@ -55,6 +55,7 @@ from app.schemas.market import (
 from app.schemas.mtm_compute import MtmComputeRequest, MtmComputeResponse
 from app.schemas.mtm_snapshot import MTMSnapshotCreate, MTMSnapshotRead
 from app.schemas.orders import (
+    AssignDealRequest,
     CustomerCreate,
     CustomerRead,
     CustomerUpdate,
@@ -116,6 +117,7 @@ __all__ = [
     "PurchaseOrderCreate",
     "PurchaseOrderUpdate",
     "PurchaseOrderRead",
+    "AssignDealRequest",
     "SalesOrderCreate",
     "SalesOrderUpdate",
     "SalesOrderRead",

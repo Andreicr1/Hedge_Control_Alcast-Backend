@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from app.models.domain import DealLifecycleStatus, DealStatus
+from app.models.domain import DealCommercialStatus, DealLifecycleStatus, DealStatus
 
 
 class DealRead(BaseModel):
@@ -11,6 +11,9 @@ class DealRead(BaseModel):
     deal_uuid: str
     reference_name: Optional[str] = None
     commodity: Optional[str]
+    company: Optional[str] = None
+    economic_period: Optional[str] = None
+    commercial_status: DealCommercialStatus
     currency: str
     status: DealStatus
     lifecycle_status: DealLifecycleStatus
@@ -22,6 +25,18 @@ class DealRead(BaseModel):
 
 class DealUpdate(BaseModel):
     reference_name: Optional[str] = None
+    company: Optional[str] = None
+    economic_period: Optional[str] = None
+    commercial_status: Optional[DealCommercialStatus] = None
+
+
+class DealCreate(BaseModel):
+    reference_name: Optional[str] = None
+    commodity: Optional[str] = None
+    company: Optional[str] = None
+    economic_period: Optional[str] = None
+    commercial_status: Optional[DealCommercialStatus] = None
+    currency: Optional[str] = None
 
 
 class PhysicalLeg(BaseModel):

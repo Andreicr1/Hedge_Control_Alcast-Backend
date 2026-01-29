@@ -663,6 +663,9 @@ def _ensure_deal(
     d = models.Deal(
         commodity="Aluminium P1020A",
         reference_name=reference_name,
+        company=company.label,
+        economic_period=None,
+        commercial_status=models.DealCommercialStatus.active,
         currency="USD",
         status=models.DealStatus.open,
         lifecycle_status=models.DealLifecycleStatus.open,
@@ -716,7 +719,7 @@ def _create_sales_order(
         else None,
         expected_delivery_date=delivery_date,
         location=rng.choice(["Rotterdam", "Hamburg", "Santos", "New Orleans", "Busan"]),
-        status=models.OrderStatus.active if rng.random() > 0.10 else models.OrderStatus.draft,
+        status=models.OrderStatus.active,
         notes=rng.choice(
             [
                 "Incoterm CFR; warehouse release subject to BL confirmation.",
@@ -790,7 +793,7 @@ def _create_purchase_order(
         else None,
         expected_delivery_date=delivery_date,
         location=rng.choice(["Port Klang", "Sohar", "Halifax", "Ras Al Khair", "Bahrain"]),
-        status=models.OrderStatus.active if rng.random() > 0.10 else models.OrderStatus.draft,
+        status=models.OrderStatus.active,
         notes=rng.choice(
             [
                 "Shipment window per laycan; demurrage per charter party.",
@@ -1125,9 +1128,11 @@ def _seed_company(
         ("BNP Paribas Commodities", models.CounterpartyType.bank),
     ]
 
-    n_customers = max(20, min(30, int(round(25 * scale))))
-    n_suppliers = max(15, min(25, int(round(20 * scale))))
-    n_counterparties = max(8, min(12, int(round(10 * scale))))
+    # Targets (per company) for operational validation.
+    # Overall (two companies): 6–8 customers, 6–8 suppliers, 4–6 banks/brokers.
+    n_customers = max(3, min(4, int(round(4 * scale))))
+    n_suppliers = max(3, min(4, int(round(4 * scale))))
+    n_counterparties = max(2, min(3, int(round(3 * scale))))
 
     customers: list[models.Customer] = []
     for i in range(n_customers):
@@ -1152,7 +1157,8 @@ def _seed_company(
     db.commit()
 
     # ---- deals ----
-    n_deals = max(30, min(50, int(round(40 * scale))))
+    # Overall (two companies): 12–18 deals.
+    n_deals = max(6, min(9, int(round(7 * scale))))
     deals: list[models.Deal] = []
     scenarios = [
         "Billet premiums • Europe",
@@ -1171,89 +1177,228 @@ def _seed_company(
     db.commit()
 
     # ---- SO/PO generation targets ----
-    n_sos = max(80, min(150, int(round(120 * scale))))
-    n_pos = max(80, min(150, int(round(120 * scale))))
+    # Overall (two companies): ~25–35 SOs and ~30–40 POs (incl. 4 quarterly structural).
+    n_sos = max(12, min(18, int(round(15 * scale))))
+    n_pos_regular = max(14, min(20, int(round(16 * scale))))
 
-    pt_weights: list[tuple[models.PriceType, float]] = [
-        (models.PriceType.FIX, 0.40),
-        (models.PriceType.AVG, 0.30),
-        (models.PriceType.AVG_INTER, 0.15),
-        (models.PriceType.C2R, 0.15),
-    ]
+    # Exactly the allowed pricing types.
+    # Target distribution: ~90% variable (AVG/AVGInter/C2R), ~10% FIX.
+    def _price_types_for_orders(*, total: int, fixed_ratio: float) -> list[models.PriceType]:
+        total = max(0, int(total))
+        fixed_n = int(round(float(total) * float(fixed_ratio)))
+        fixed_n = max(0, min(total, fixed_n))
+
+        variable_n = total - fixed_n
+        avg_n = int(round(variable_n * 0.55))
+        avg_inter_n = int(round(variable_n * 0.25))
+        c2r_n = max(0, variable_n - avg_n - avg_inter_n)
+
+        pts: list[models.PriceType] = []
+        pts.extend([models.PriceType.FIX] * fixed_n)
+        pts.extend([models.PriceType.AVG] * avg_n)
+        pts.extend([models.PriceType.AVG_INTER] * avg_inter_n)
+        pts.extend([models.PriceType.C2R] * c2r_n)
+        rng.shuffle(pts)
+        return pts
+
+    so_price_types = _price_types_for_orders(total=n_sos, fixed_ratio=0.10)
+    po_price_types = _price_types_for_orders(total=n_pos_regular, fixed_ratio=0.10)
+
+    today = _today_utc()
+
+    def _delivery_date_within_year() -> date:
+        # Distribute deliveries across the next 12 months.
+        offset_days = int(
+            rng.choice(
+                [
+                    rng.randint(15, 60),
+                    rng.randint(61, 120),
+                    rng.randint(121, 210),
+                    rng.randint(211, 330),
+                ]
+            )
+        )
+        return today + timedelta(days=offset_days)
 
     created_exposures: list[int] = []
 
-    # Sales Orders
-    for i in range(n_sos):
-        deal = deals[i % len(deals)]
-        cust = customers[(i * 3) % len(customers)]
-        pt = _weighted_choice(rng, pt_weights)
-        qty = float(rng.uniform(180.0, 2600.0))
-        dd = _today_utc() + timedelta(days=_pick_horizon_bucket(rng))
-        so_number = f"{company.code}-SO-{i+1:05d}"
+    # Deal mix: ensure some simple deals (1 SO + 1 PO) and some more complete deals
+    # (1+ SO with multiple POs).
+    n_simple_deals = min(3, max(2, len(deals) // 2))
+    simple_deals = list(deals[:n_simple_deals])
+    complex_deals = list(deals[n_simple_deals:]) or list(simple_deals)
 
-        so = _create_sales_order(
-            db,
-            company=company,
-            deal=deal,
-            so_number=so_number,
-            customer_id=int(cust.id),
-            pricing_type=pt,
-            qty_mt=qty,
-            delivery_date=dd,
-            rng=rng,
-        )
-        db.flush()
+    so_counts_by_deal: dict[int, int] = {int(d.id): 1 for d in simple_deals}
+    remaining_sos = max(0, int(n_sos) - len(simple_deals))
+    if complex_deals:
+        base = remaining_sos // len(complex_deals)
+        extra = remaining_sos % len(complex_deals)
+        for j, d in enumerate(complex_deals):
+            so_counts_by_deal[int(d.id)] = int(base + (1 if j < extra else 0))
+    elif simple_deals:
+        so_counts_by_deal[int(simple_deals[0].id)] = int(so_counts_by_deal[int(simple_deals[0].id)] + remaining_sos)
 
-        rec = reconcile_sales_order_exposures(db=db, so=so)
+    po_counts_by_deal: dict[int, int] = {int(d.id): 1 for d in simple_deals}
+    remaining_pos = max(0, int(n_pos_regular) - len(simple_deals))
+    if complex_deals:
+        base = remaining_pos // len(complex_deals)
+        extra = remaining_pos % len(complex_deals)
+        for j, d in enumerate(complex_deals):
+            po_counts_by_deal[int(d.id)] = int(base + (1 if j < extra else 0))
+    elif simple_deals:
+        po_counts_by_deal[int(simple_deals[0].id)] = int(po_counts_by_deal[int(simple_deals[0].id)] + remaining_pos)
 
-        # Important: timeline emission commits/rollbacks internally for idempotency.
-        # Commit the exposure mutations first so a timeline idempotency conflict
-        # cannot rollback the newly-created exposure rows.
-        created_ids = list(rec.created_exposure_ids)
-        recalculated_ids = list(rec.recalculated_exposure_ids)
-        closed_ids = list(rec.closed_exposure_ids)
-        db.commit()
+    # Sales Orders (50–300 MT)
+    so_seq = 1
+    so_pt_idx = 0
+    for deal in deals:
+        n_for_deal = int(so_counts_by_deal.get(int(deal.id), 0))
+        for _ in range(n_for_deal):
+            i = so_seq - 1
+            cust = customers[(i * 2) % len(customers)]
+            pt = (
+                so_price_types[so_pt_idx % len(so_price_types)]
+                if so_price_types
+                else models.PriceType.AVG
+            )
+            so_pt_idx += 1
+            qty = float(round(rng.uniform(50.0, 300.0), 2))
+            dd = _delivery_date_within_year()
+            so_number = f"{company.code}-SO-{so_seq:05d}"
+            so_seq += 1
 
-        for exp_id in created_ids:
-            exp = db.get(models.Exposure, int(exp_id))
-            if exp is not None:
-                emit_exposure_created(
-                    db=db,
-                    exposure=exp,
-                    correlation_id=correlation_id,
-                    actor_user_id=actor_ids.get("finance"),
-                )
-                created_exposures.append(int(exp_id))
-        for exp_id in recalculated_ids:
-            exp = db.get(models.Exposure, int(exp_id))
-            if exp is not None:
-                emit_exposure_recalculated(
-                    db=db,
-                    exposure=exp,
-                    correlation_id=correlation_id,
-                    actor_user_id=actor_ids.get("finance"),
-                    reason="seed_sales_order",
-                )
-        for exp_id in closed_ids:
-            exp = db.get(models.Exposure, int(exp_id))
-            if exp is not None:
-                emit_exposure_closed(
-                    db=db,
-                    exposure=exp,
-                    correlation_id=correlation_id,
-                    actor_user_id=actor_ids.get("finance"),
-                    reason="seed_sales_order",
-                )
+            so = _create_sales_order(
+                db,
+                company=company,
+                deal=deal,
+                so_number=so_number,
+                customer_id=int(cust.id),
+                pricing_type=pt,
+                qty_mt=qty,
+                delivery_date=dd,
+                rng=rng,
+            )
+            db.flush()
 
-    # Purchase Orders
-    for i in range(n_pos):
-        deal = deals[(i * 2) % len(deals)]
-        sup = suppliers[(i * 5) % len(suppliers)]
-        pt = _weighted_choice(rng, pt_weights)
-        qty = float(rng.uniform(200.0, 3200.0))
-        dd = _today_utc() + timedelta(days=_pick_horizon_bucket(rng))
-        po_number = f"{company.code}-PO-{i+1:05d}"
+            rec = reconcile_sales_order_exposures(db=db, so=so)
+            created_ids = list(rec.created_exposure_ids)
+            recalculated_ids = list(rec.recalculated_exposure_ids)
+            closed_ids = list(rec.closed_exposure_ids)
+            db.commit()
+
+            for exp_id in created_ids:
+                exp = db.get(models.Exposure, int(exp_id))
+                if exp is not None:
+                    emit_exposure_created(
+                        db=db,
+                        exposure=exp,
+                        correlation_id=correlation_id,
+                        actor_user_id=actor_ids.get("finance"),
+                    )
+                    created_exposures.append(int(exp_id))
+            for exp_id in recalculated_ids:
+                exp = db.get(models.Exposure, int(exp_id))
+                if exp is not None:
+                    emit_exposure_recalculated(
+                        db=db,
+                        exposure=exp,
+                        correlation_id=correlation_id,
+                        actor_user_id=actor_ids.get("finance"),
+                        reason="seed_sales_order",
+                    )
+            for exp_id in closed_ids:
+                exp = db.get(models.Exposure, int(exp_id))
+                if exp is not None:
+                    emit_exposure_closed(
+                        db=db,
+                        exposure=exp,
+                        correlation_id=correlation_id,
+                        actor_user_id=actor_ids.get("finance"),
+                        reason="seed_sales_order",
+                    )
+
+    # Regular Purchase Orders (50–400 MT)
+    po_seq = 1
+    po_pt_idx = 0
+    for deal in deals:
+        n_for_deal = int(po_counts_by_deal.get(int(deal.id), 0))
+        for _ in range(n_for_deal):
+            i = po_seq - 1
+            sup = suppliers[(i * 3) % len(suppliers)]
+            pt = (
+                po_price_types[po_pt_idx % len(po_price_types)]
+                if po_price_types
+                else models.PriceType.AVG
+            )
+            po_pt_idx += 1
+            qty = float(round(rng.uniform(50.0, 400.0), 2))
+            dd = _delivery_date_within_year()
+            po_number = f"{company.code}-PO-{po_seq:05d}"
+            po_seq += 1
+
+            po = _create_purchase_order(
+                db,
+                company=company,
+                deal=deal,
+                po_number=po_number,
+                supplier_id=int(sup.id),
+                pricing_type=pt,
+                qty_mt=qty,
+                delivery_date=dd,
+                rng=rng,
+            )
+            db.flush()
+
+            rec = reconcile_purchase_order_exposures(db=db, po=po)
+            created_ids = list(rec.created_exposure_ids)
+            recalculated_ids = list(rec.recalculated_exposure_ids)
+            closed_ids = list(rec.closed_exposure_ids)
+            db.commit()
+
+            for exp_id in created_ids:
+                exp = db.get(models.Exposure, int(exp_id))
+                if exp is not None:
+                    emit_exposure_created(
+                        db=db,
+                        exposure=exp,
+                        correlation_id=correlation_id,
+                        actor_user_id=actor_ids.get("finance"),
+                    )
+                    created_exposures.append(int(exp_id))
+            for exp_id in recalculated_ids:
+                exp = db.get(models.Exposure, int(exp_id))
+                if exp is not None:
+                    emit_exposure_recalculated(
+                        db=db,
+                        exposure=exp,
+                        correlation_id=correlation_id,
+                        actor_user_id=actor_ids.get("finance"),
+                        reason="seed_purchase_order",
+                    )
+            for exp_id in closed_ids:
+                exp = db.get(models.Exposure, int(exp_id))
+                if exp is not None:
+                    emit_exposure_closed(
+                        db=db,
+                        exposure=exp,
+                        correlation_id=correlation_id,
+                        actor_user_id=actor_ids.get("finance"),
+                        reason="seed_purchase_order",
+                    )
+
+    # Quarterly structural POs (4 per year across the dataset; split by company)
+    year = today.year
+    quarters = [1, 3] if company.code == "AB" else [2, 4]
+    quarter_delivery = {
+        1: date(year, 2, 15),
+        2: date(year, 5, 15),
+        3: date(year, 8, 15),
+        4: date(year, 11, 15),
+    }
+    for q in quarters:
+        deal = deals[(q - 1) % len(deals)]
+        sup = suppliers[(q * 7) % len(suppliers)]
+        po_number = f"{company.code}-PO-STR-Q{q}-{year}"
 
         po = _create_purchase_order(
             db,
@@ -1261,11 +1406,16 @@ def _seed_company(
             deal=deal,
             po_number=po_number,
             supplier_id=int(sup.id),
-            pricing_type=pt,
-            qty_mt=qty,
-            delivery_date=dd,
+            pricing_type=models.PriceType.FIX,
+            qty_mt=12000.0,
+            delivery_date=quarter_delivery[q],
             rng=rng,
         )
+        po.notes = (
+            f"CONTRATO ESTRUTURAL TRIMESTRAL • Q{q} {year} • 12.000 MT • "
+            "Supply frame agreement (operational validation seed)."
+        )
+        db.add(po)
         db.flush()
 
         rec = reconcile_purchase_order_exposures(db=db, po=po)
@@ -1292,7 +1442,7 @@ def _seed_company(
                     exposure=exp,
                     correlation_id=correlation_id,
                     actor_user_id=actor_ids.get("finance"),
-                    reason="seed_purchase_order",
+                    reason="seed_purchase_order_structural",
                 )
         for exp_id in closed_ids:
             exp = db.get(models.Exposure, int(exp_id))
@@ -1302,13 +1452,17 @@ def _seed_company(
                     exposure=exp,
                     correlation_id=correlation_id,
                     actor_user_id=actor_ids.get("finance"),
-                    reason="seed_purchase_order",
+                    reason="seed_purchase_order_structural",
                 )
 
     db.commit()
 
     # ---- Hedge scenarios (open / partial / hedged / closed) ----
     rng.shuffle(created_exposures)
+
+    # Keep this lean: only a subset gets lifecycle/hedge actions.
+    max_hedge_candidates = max(18, min(28, int(round(24 * scale))))
+    hedge_candidates = list(created_exposures[:max_hedge_candidates])
 
     def _reconcile_source_for_exposure(exp: models.Exposure) -> None:
         if exp.source_type == models.MarketObjectType.so:
@@ -1347,12 +1501,12 @@ def _seed_company(
                     reason="seed_hedge_link",
                 )
 
-    for idx, exp_id in enumerate(created_exposures):
+    for idx, exp_id in enumerate(hedge_candidates):
         exp = db.get(models.Exposure, int(exp_id))
         if exp is None:
             continue
 
-        r = idx / max(1, len(created_exposures))
+        r = idx / max(1, len(hedge_candidates))
         if r < 0.30:
             # keep open
             continue
@@ -1484,7 +1638,7 @@ def _seed_company(
         db.query(models.Exposure)
         .filter(models.Exposure.source_type == models.MarketObjectType.so)
         .order_by(models.Exposure.id.asc())
-        .limit(max(20, int(0.20 * len(open_or_partial))))
+        .limit(max(4, min(8, int(round(6 * scale)))))
         .all()
     )
 
@@ -1567,11 +1721,18 @@ def _seed_company(
             .first()
         )
         if existing_link is None:
+            r = i / max(1, len(so_exposures))
+            if r < 0.35:
+                q_link = float(min(float(exp.quantity_mt), float(so.total_quantity_mt)))
+            else:
+                q_link = float(min(float(exp.quantity_mt), float(so.total_quantity_mt))) * float(
+                    rng.uniform(0.35, 0.75)
+                )
             db.add(
                 models.ContractExposure(
                     contract_id=str(contract.contract_id),
                     exposure_id=int(exp.id),
-                    quantity_mt=float(min(float(exp.quantity_mt), float(so.total_quantity_mt))),
+                    quantity_mt=float(q_link),
                 )
             )
             db.commit()

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from app import models
 from app.api.deps import require_roles
 from app.database import get_db
-from app.schemas import SalesOrderCreate, SalesOrderRead, SalesOrderUpdate
+from app.schemas import AssignDealRequest, SalesOrderCreate, SalesOrderRead, SalesOrderUpdate
 from app.services.document_numbering import next_monthly_number
 from app.services.exposure_engine import (
     close_open_exposures_for_source,
@@ -56,6 +56,13 @@ def list_sales_orders(
 def create_sales_order(
     payload: SalesOrderCreate,
     request: Request,
+    create_deal_if_missing: bool = Query(
+        False,
+        description=(
+            "Legacy escape hatch: when true and deal_id is omitted, "
+            "the API will create a new deal automatically."
+        ),
+    ),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
         require_roles(models.RoleName.admin, models.RoleName.comercial)
@@ -81,8 +88,13 @@ def create_sales_order(
         deal_id = int(deal.id)
         allocation_type = models.DealAllocationType.manual
     else:
-        # Sales Orders must always be linked to a deal.
-        # If caller didn't pick one, we create a fresh deal and link automatically.
+        if not create_deal_if_missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="deal_id is required. Create/select a Deal before creating a Sales Order.",
+            )
+
+        # Legacy mode: if caller didn't pick one, create a fresh deal and link automatically.
         deal = models.Deal(
             commodity=payload.product,
             currency="USD",
@@ -261,6 +273,46 @@ def update_sales_order(
                 reason="sales_order_reconcile",
             )
 
+    return so
+
+
+@router.post("/{so_id}/assign-deal", response_model=SalesOrderRead)
+def assign_sales_order_to_deal(
+    so_id: int,
+    payload: AssignDealRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        require_roles(models.RoleName.admin, models.RoleName.comercial)
+    ),
+):
+    so = db.get(models.SalesOrder, so_id)
+    if not so:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sales Order not found")
+
+    deal = db.get(models.Deal, int(payload.deal_id))
+    if not deal:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Deal not found")
+
+    so.deal_id = int(deal.id)
+
+    db.query(models.DealLink).filter(
+        models.DealLink.entity_type == models.DealEntityType.so,
+        models.DealLink.entity_id == so.id,
+    ).delete(synchronize_session=False)
+    db.add(
+        models.DealLink(
+            deal_id=int(deal.id),
+            entity_type=models.DealEntityType.so,
+            entity_id=so.id,
+            direction=models.DealDirection.sell,
+            quantity_mt=so.total_quantity_mt,
+            allocation_type=models.DealAllocationType.manual,
+        )
+    )
+
+    db.add(so)
+    db.commit()
+    db.refresh(so)
     return so
 
 

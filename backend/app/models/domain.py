@@ -162,6 +162,12 @@ class DealStatus(PyEnum):
     settled = "settled"
 
 
+class DealCommercialStatus(PyEnum):
+    negotiation = "negotiation"
+    active = "active"
+    closed = "closed"
+
+
 class DealEntityType(PyEnum):
     so = "so"
     po = "po"
@@ -1243,6 +1249,14 @@ class Deal(Base):
     commodity: Mapped[str | None] = mapped_column(String(255), index=True)
     # Human-friendly label for users (free text). Used for quick search and UI display.
     reference_name: Mapped[str | None] = mapped_column(String(255), index=True)
+    company: Mapped[str | None] = mapped_column(String(64), index=True)
+    economic_period: Mapped[str | None] = mapped_column(String(32), index=True)
+    commercial_status: Mapped[DealCommercialStatus] = mapped_column(
+        Enum(DealCommercialStatus, native_enum=False),
+        default=DealCommercialStatus.active,
+        nullable=False,
+        index=True,
+    )
     currency: Mapped[str] = mapped_column(String(8), default="USD")
     status: Mapped[DealStatus] = mapped_column(
         # Stored as VARCHAR in Supabase schema.
