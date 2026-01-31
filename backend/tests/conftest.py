@@ -25,12 +25,11 @@ def _bootstrap_app_for_tests():
     # Now import app modules - they will use the test DATABASE_URL.
     # Imports are inside a function to avoid Ruff/isort (I001) complaining about
     # non-top-level import blocks while still preserving the required ordering.
-    from app.database import Base, get_db  # noqa: E402
-    from app.database import engine as app_engine  # noqa: E402
-    from app.main import app  # noqa: E402
-
     # Ensure all models are imported so Base.metadata contains the full schema.
     from app import models as _models  # noqa: E402,F401
+    from app.database import Base, get_db  # noqa: E402
+    from app.database import engine as app_engine
+    from app.main import app  # noqa: E402
 
     testing_session_local = sessionmaker(
         autocommit=False,
