@@ -20,18 +20,29 @@ os.environ["API_V1_STR"] = "/api"  # Ensure /api prefix is used in tests
 os.environ["AUTH_MODE"] = "local"  # Ensure auth endpoints are available in tests
 os.environ["INGEST_TOKEN"] = "test-ingest-token"
 
-# Now import app modules - they will use the test DATABASE_URL
-from app.database import Base, get_db  # noqa: E402
-from app.database import engine as app_engine  # noqa: E402
-from app.main import app  # noqa: E402
 
-# Ensure all models are imported so Base.metadata contains the full schema.
-from app import models as _models  # noqa: E402,F401
+def _bootstrap_app_for_tests():
+    # Now import app modules - they will use the test DATABASE_URL.
+    # Imports are inside a function to avoid Ruff/isort (I001) complaining about
+    # non-top-level import blocks while still preserving the required ordering.
+    from app.database import Base, get_db  # noqa: E402
+    from app.database import engine as app_engine  # noqa: E402
+    from app.main import app  # noqa: E402
 
-# Use the same engine that the app uses
-TEST_ENGINE = app_engine
+    # Ensure all models are imported so Base.metadata contains the full schema.
+    from app import models as _models  # noqa: E402,F401
 
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=TEST_ENGINE, future=True)
+    testing_session_local = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=app_engine,
+        future=True,
+    )
+
+    return app, Base, get_db, app_engine, testing_session_local
+
+
+app, Base, get_db, TEST_ENGINE, TestingSessionLocal = _bootstrap_app_for_tests()
 
 
 def override_get_db():
