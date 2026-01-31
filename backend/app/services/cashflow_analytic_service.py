@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.schemas.cashflow_analytic import CashFlowLineRead
+
+logger = logging.getLogger("alcast.cashflow_analytic")
 
 _DEFAULT_LME_SYMBOL = "Q7Y00"  # official
 _ALLOWED_LME_SYMBOLS = {"P3Y00", "P4Y00", "Q7Y00"}
@@ -406,11 +409,50 @@ def build_cashflow_analytic_lines(
             continue
 
         # Prefer snapshot MTM for projection (fast, avoids per-contract compute).
+        # Governance: do not silently fall back for missing MTM-by-date.
         m = mtm_by_contract.get(str(c.contract_id))
-        val = float(m.mtm_usd) if m is not None else 0.0
+        if m is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "mtm_contract_snapshot_missing",
+                    "message": "Missing MTM contract snapshot for as_of; cannot project contract cashflow.",
+                    "contract_id": str(c.contract_id),
+                    "as_of": as_of.isoformat(),
+                },
+            )
+
+        # Governance: contract MTM snapshot references must reflect D-1 valuation reference.
+        refs = dict(m.references or {})
+        obs_end = refs.get("observation_end_used")
+        expected = valuation_ref.isoformat()
+        if str(obs_end or "") != expected:
+            logger.error(
+                "cashflow_analytic.contract_snapshot_reference_mismatch",
+                extra={
+                    "contract_id": str(c.contract_id),
+                    "as_of": as_of.isoformat(),
+                    "expected_observation_end_used": expected,
+                    "observation_end_used": obs_end,
+                    "snapshot_id": getattr(m, "id", None),
+                },
+            )
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "valuation_reference_mismatch",
+                    "entity": "contract",
+                    "contract_id": str(c.contract_id),
+                    "as_of": as_of.isoformat(),
+                    "valuation_reference_date": expected,
+                    "observation_end_used": obs_end,
+                },
+            )
+
+        val = float(m.mtm_usd)
         valuation_method = "mtm"
         confidence = "estimated"
-        valuation_reference_date = as_of
+        valuation_reference_date = valuation_ref
 
         direction = "inflow" if val >= 0 else "outflow"
         amount = abs(float(val))

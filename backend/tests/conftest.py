@@ -4,8 +4,13 @@ import tempfile
 import pytest
 from sqlalchemy.orm import sessionmaker
 
-# CRITICAL: Set environment variables BEFORE any app imports
-# These must be set before app.config.settings is loaded
+# CRITICAL: Set environment variables BEFORE any app imports.
+#
+# IMPORTANT: The real production database is Azure Database for PostgreSQL.
+# SQLite here is strictly a *test harness* database backend for CI/local pytest execution.
+# It must not be interpreted as production behavior.
+#
+# These must be set before app.config.settings is loaded.
 _TEST_DB_PATH = os.path.join(tempfile.gettempdir(), "test_alcast.db")
 os.environ["SECRET_KEY"] = "test-secret-key-1234567890"
 os.environ["ALGORITHM"] = "HS256"
@@ -19,6 +24,9 @@ os.environ["INGEST_TOKEN"] = "test-ingest-token"
 from app.database import Base, get_db  # noqa: E402
 from app.database import engine as app_engine  # noqa: E402
 from app.main import app  # noqa: E402
+
+# Ensure all models are imported so Base.metadata contains the full schema.
+from app import models as _models  # noqa: E402,F401
 
 # Use the same engine that the app uses
 TEST_ENGINE = app_engine

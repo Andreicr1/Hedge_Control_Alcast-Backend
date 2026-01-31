@@ -2,6 +2,7 @@
 
 import os
 import uuid
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +18,7 @@ from app.database import Base
 from app.api import deps
 from app import models
 from app.main import app
+from app.services.exposure_engine import reconcile_sales_order_exposures
 
 
 @pytest.fixture(autouse=True)
@@ -82,11 +84,23 @@ def _seed_so_counterparty_and_rfq(*, db, customer_kyc_status: str = "approved"):
     db.commit()
     db.refresh(customer)
 
-    so = models.SalesOrder(so_number=f"SO-{uid}", customer_id=customer.id, total_quantity_mt=10.0)
-    so.deal_id = deal.id
+    so = models.SalesOrder(
+        so_number=f"SO-{uid}",
+        deal_id=deal.id,
+        customer_id=customer.id,
+        product="AL",
+        total_quantity_mt=10.0,
+        pricing_type=models.PriceType.AVG_INTER,
+        pricing_period="2026-01",
+        expected_delivery_date=date(2026, 1, 15),
+        status=models.OrderStatus.active,
+    )
     db.add(so)
     db.commit()
     db.refresh(so)
+
+    reconcile_sales_order_exposures(db=db, so=so)
+    db.commit()
 
     cp = models.Counterparty(name=f"CP-{uid}", type=models.CounterpartyType.bank)
     db.add(cp)

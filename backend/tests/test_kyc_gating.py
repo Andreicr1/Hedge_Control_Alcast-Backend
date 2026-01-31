@@ -2,7 +2,7 @@
 
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-1234567890")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
@@ -18,6 +18,7 @@ from app import models
 from app.api import deps
 from app.database import Base
 from app.main import app
+from app.services.exposure_engine import reconcile_sales_order_exposures
 
 engine = create_engine(
     os.environ["DATABASE_URL"],
@@ -86,11 +87,24 @@ def _seed_so_and_counterparty(
     db.commit()
     db.refresh(cust)
 
-    so = models.SalesOrder(so_number=f"SO-{uid}", customer_id=cust.id, total_quantity_mt=10.0)
-    so.deal_id = deal.id
+    so = models.SalesOrder(
+        so_number=f"SO-{uid}",
+        deal_id=deal.id,
+        customer_id=cust.id,
+        product="AL",
+        total_quantity_mt=10.0,
+        pricing_type=models.PriceType.AVG_INTER,
+        pricing_period="2026-01",
+        expected_delivery_date=date(2026, 1, 15),
+        status=models.OrderStatus.active,
+    )
     db.add(so)
     db.commit()
     db.refresh(so)
+
+    # Materialize exposure needed for award linkage.
+    reconcile_sales_order_exposures(db=db, so=so)
+    db.commit()
 
     cp = models.Counterparty(name=f"CP-{uid}", type=models.CounterpartyType.bank)
     cp.kyc_status = counterparty_kyc_status

@@ -2,7 +2,8 @@
 
 import logging
 import os
-from datetime import datetime
+import re
+from datetime import date, datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -46,6 +47,50 @@ def _exposure_period_bucket(exposure: models.Exposure) -> str:
     return "unknown"
 
 
+_MONTH_ABBR_TO_NUM: dict[str, int] = {
+    # English
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+    # Portuguese (pt-BR)
+    "fev": 2,
+    "abr": 4,
+    "mai": 5,
+    "ago": 8,
+    "set": 9,
+    "out": 10,
+    "dez": 12,
+}
+
+
+def _normalize_rfq_period_bucket(period: str) -> str:
+    """Normalize RFQ.period into the canonical exposure bucket format YYYY-MM.
+
+    This preserves backward compatibility for legacy UI formats like 'Jan/2026'.
+    """
+
+    s = (period or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        return s
+
+    m = re.fullmatch(r"([A-Za-z]{3})\s*/\s*(\d{4})", s)
+    if m:
+        mon = _MONTH_ABBR_TO_NUM.get(m.group(1).lower())
+        if mon:
+            return f"{int(m.group(2)):04d}-{mon:02d}"
+
+    return s
+
+
 def _trade_quantity_mt(*, trade_snapshot: dict, fallback: float) -> float:
     legs = (trade_snapshot or {}).get("legs") or []
     for leg in legs:
@@ -64,7 +109,7 @@ def _link_contract_to_exposures(
     contract: models.Contract,
     deal_id: int,
     rfq_period: str,
-) -> None:
+) -> int:
     allowed_types = (models.PriceType.AVG, models.PriceType.AVG_INTER, models.PriceType.C2R)
     # Candidate exposures: open (or partially hedged), floating, belonging to this deal.
     so_exposures = (
@@ -97,7 +142,7 @@ def _link_contract_to_exposures(
     )
 
     if not exposures:
-        return
+        return 0
 
     exposure_ids = [int(e.id) for e in exposures]
 
@@ -128,8 +173,9 @@ def _link_contract_to_exposures(
         ),
     )
     if remaining_qty <= 0:
-        return
+        return 0
 
+    linked = 0
     for exp in exposures:
         exp_id = int(exp.id)
         allocated = float(existing_contract_alloc.get(exp_id, 0.0)) + float(
@@ -150,9 +196,12 @@ def _link_contract_to_exposures(
                 quantity_mt=float(take),
             )
         )
+        linked += 1
         remaining_qty -= take
         if remaining_qty <= 1e-9:
             break
+
+    return linked
 
 
 def _group_trades(quotes: list[models.RfqQuote]) -> list[dict]:
@@ -761,29 +810,40 @@ def award_quote(
                 holidays = (spec or {}).get("holidays") or None
                 cal = rfq_engine.HolidayCalendar(holidays)
 
+                def _date_from_iso(v) -> date | None:
+                    if v is None or v == "":
+                        return None
+                    if isinstance(v, date):
+                        return v
+                    if isinstance(v, datetime):
+                        return v.date()
+                    if isinstance(v, str):
+                        return datetime.fromisoformat(v).date()
+                    raise TypeError(f"Unsupported date type: {type(v)!r}")
+
                 def _leg_from_spec(leg: dict) -> rfq_engine.Leg:
                     order = None
                     if leg.get("order"):
                         order = rfq_engine.OrderInstruction(
-                            order_type=leg["order"]["order_type"],
+                            order_type=rfq_engine.OrderType(leg["order"]["order_type"]),
                             validity=leg["order"].get("validity"),
                             limit_price=leg["order"].get("limit_price"),
                         )
                     return rfq_engine.Leg(
-                        side=leg["side"],
-                        price_type=leg["price_type"],
+                        side=rfq_engine.Side(leg["side"]),
+                        price_type=rfq_engine.PriceType(leg["price_type"]),
                         quantity_mt=float(leg.get("quantity_mt") or rfq.quantity_mt),
                         month_name=leg.get("month_name"),
-                        year=leg.get("year"),
-                        start_date=leg.get("start_date"),
-                        end_date=leg.get("end_date"),
-                        fixing_date=leg.get("fixing_date"),
-                        ppt=leg.get("ppt"),
+                        year=int(leg["year"]) if leg.get("year") is not None else None,
+                        start_date=_date_from_iso(leg.get("start_date")),
+                        end_date=_date_from_iso(leg.get("end_date")),
+                        fixing_date=_date_from_iso(leg.get("fixing_date")),
+                        ppt=_date_from_iso(leg.get("ppt")),
                         order=order,
                     )
 
                 t = rfq_engine.RfqTrade(
-                    trade_type=spec["trade_type"],
+                    trade_type=rfq_engine.TradeType(spec["trade_type"]),
                     leg1=_leg_from_spec(spec["leg1"]),
                     leg2=_leg_from_spec(spec["leg2"]) if spec.get("leg2") else None,
                     sync_ppt=bool(spec.get("sync_ppt") or False),
@@ -821,13 +881,31 @@ def award_quote(
         db.add(contract)
         created_contracts.append(contract)
 
-    # Persist the contract → exposure links for traceability (PO vs SO origin).
-    # Note: this does not change Exposure status; it is an audit-style linkage.
-    for c in created_contracts:
-        _link_contract_to_exposures(
-            db=db, contract=c, deal_id=int(deal_id), rfq_period=str(rfq.period)
-        )
+    # Ensure contract_id (UUID PK) is assigned before we persist linkage rows.
+    db.flush()
 
+    # Persist the contract → exposure links for traceability (PO vs SO origin).
+    # Governance: award must not succeed without auditable linkage.
+    rfq_period_bucket = _normalize_rfq_period_bucket(str(rfq.period))
+    for c in created_contracts:
+        linked = _link_contract_to_exposures(
+            db=db, contract=c, deal_id=int(deal_id), rfq_period=str(rfq_period_bucket)
+        )
+        if int(linked or 0) <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "CONTRACT_EXPOSURE_LINK_MISSING",
+                    "rfq_id": int(rfq.id),
+                    "contract_id": str(c.contract_id),
+                    "deal_id": int(deal_id),
+                    "rfq_period": str(rfq.period),
+                    "rfq_period_bucket": str(rfq_period_bucket),
+                },
+            )
+
+    # Force a flush so constraint failures surface before commit.
+    db.flush()
     db.commit()
     logger.info(
         "rfq.awarded",
